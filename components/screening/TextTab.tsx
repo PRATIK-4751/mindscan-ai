@@ -6,6 +6,7 @@ import LoadingSpinner from "../shared/LoadingSpinner";
 import { analyzeText } from "../../lib/api";
 import type { LimeWord } from "../../lib/types";
 import LIMEChart from "../results/LIMEChart";
+import InsightChat from "../results/InsightChat";
 
 export interface TextTabResult {
   text: string;
@@ -27,6 +28,7 @@ export default function TextTab({ onComplete, value = "" }: TextTabProps) {
   const [limeWords, setLimeWords] = useState<LimeWord[]>([]);
   const [score, setScore] = useState(0);
   const [error, setError] = useState<string | null>(null);
+  const [showChat, setShowChat] = useState(false);
   const textValue = watch("text") ?? "";
 
   const wordMap = useMemo(() => {
@@ -107,6 +109,19 @@ export default function TextTab({ onComplete, value = "" }: TextTabProps) {
           </div>
         </div>
       )}
+      {/* Chat Bot Section */}
+      <div className="card-shell p-6">
+        <div className="mb-4 flex items-center justify-between">
+          <h4 className="font-display text-xl uppercase tracking-[0.3em] text-[var(--cream)]">AI Assistant</h4>
+          <button
+            onClick={() => setShowChat(!showChat)}
+            className="text-xs uppercase tracking-[0.3em] text-[var(--cream)] hover:text-[var(--amber-gold)]"
+          >
+            {showChat ? "Hide Chat" : "Show Chat"}
+          </button>
+        </div>
+        {showChat && <InsightChat />}
+      </div>
     </div>
   );
 }
