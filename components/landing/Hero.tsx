@@ -43,20 +43,20 @@ export default function Hero() {
             <ellipse cx="100" cy="100" rx="80" ry="30" fill="none" stroke="currentColor" strokeWidth="2" opacity="0.4" />
           </svg>
         </div>
-        <h1 className="font-display text-6xl uppercase tracking-[0.6em] text-[var(--cream)] md:text-8xl lg:text-9xl">
+        <h1 className="font-display text-4xl uppercase tracking-[0.25em] text-[var(--cream)] sm:text-5xl sm:tracking-[0.35em] md:text-7xl md:tracking-[0.55em] lg:text-9xl">
           MINDSCAN
         </h1>
-        <p className="font-ui mt-6 max-w-xl text-lg uppercase tracking-[0.25em] text-[var(--text-muted)]">
+        <p className="font-ui mt-6 max-w-xl text-base uppercase tracking-[0.2em] text-[var(--text-muted)] sm:text-lg">
           Multimodal AI Depression Screening
         </p>
-        <p className="font-mono mt-4 text-xs uppercase tracking-[0.4em] text-[var(--cream)]">
+        <p className="font-mono mt-4 text-[10px] uppercase tracking-[0.35em] text-[var(--cream)]">
           [ PERCEPTION ENGINE v1.0 ]
         </p>
-        <div className="mt-12 flex flex-col gap-4 sm:flex-row">
-          <Link href="/screening" className="button-outline font-ui text-xs uppercase">
+        <div className="mt-10 flex flex-col gap-4 sm:flex-row">
+          <Link href="/screening" className="button-outline w-full text-center font-ui text-xs uppercase sm:w-auto">
             Begin Screening
           </Link>
-          <div className="scanlines border border-white/10 bg-black/30 px-6 py-4 text-xs uppercase tracking-[0.25em] text-[var(--text-muted)]">
+          <div className="scanlines border border-white/10 bg-black/30 px-6 py-4 text-[10px] uppercase tracking-[0.25em] text-[var(--text-muted)] sm:text-xs">
             Clinical-grade perception stack
           </div>
         </div>

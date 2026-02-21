@@ -6,6 +6,7 @@
   --bg-primary: #0a0a0a;
   --bg-secondary: #111111;
   --bg-card: #1a1410;
+  --card-border: rgba(232, 220, 200, 0.1);
   --rust: #c0392b;
   --amber-gold: #f5a623;
   --cream: #e8dcc8;
@@ -18,6 +19,16 @@
   --font-ui: var(--font-space);
   --font-body: var(--font-inter);
   --font-mono: var(--font-jetbrains);
+}
+
+body[data-theme="day"] {
+  --bg-primary: #f6efe5;
+  --bg-secondary: #efe4d2;
+  --bg-card: #f9f2e6;
+  --card-border: rgba(26, 20, 16, 0.12);
+  --cream: #1a1410;
+  --text-primary: #1a1410;
+  --text-muted: #6a6158;
 }
 
 *,
@@ -85,7 +96,7 @@ button {
 
 .card-shell {
   background: var(--bg-card);
-  border: 1px solid rgba(232, 220, 200, 0.1);
+  border: 1px solid var(--card-border);
 }
 
 .button-outline {

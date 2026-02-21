@@ -13,8 +13,10 @@ export default function HowItWorks() {
   return (
     <section className="bg-[var(--bg-secondary)] px-6 py-20">
       <div className="mx-auto w-full max-w-6xl">
-        <div className="mb-10 flex items-center justify-between border-b border-white/10 pb-6">
-          <h2 className="font-display text-3xl uppercase tracking-[0.35em] text-[var(--cream)]">How It Works</h2>
+        <div className="mb-10 flex flex-wrap items-center justify-between gap-4 border-b border-white/10 pb-6">
+          <h2 className="font-display text-2xl uppercase tracking-[0.3em] text-[var(--cream)] sm:text-3xl">
+            How It Works
+          </h2>
           <span className="font-mono text-xs uppercase tracking-[0.3em] text-[var(--text-muted)]">
             Multi-signal intake
           </span>

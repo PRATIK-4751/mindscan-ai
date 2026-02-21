@@ -7,6 +7,8 @@ import LIMEChart from "../../components/results/LIMEChart";
 import EmotionSummary from "../../components/results/EmotionSummary";
 import Recommendations from "../../components/results/Recommendations";
 import PDFReport from "../../components/results/PDFReport";
+import InsightChat from "../../components/results/InsightChat";
+import SessionHistory from "../../components/results/SessionHistory";
 import type { AnalysisResult, LimeWord } from "../../lib/types";
 
 interface StoredResult {
@@ -73,10 +75,16 @@ export default function ResultsPage() {
           <EmotionSummary faceEmotion={faceEmotion} voiceEmotion={voiceEmotion} />
         </div>
         <div className="mt-12">
-          <h3 className="font-display text-2xl uppercase tracking-[0.3em] text-[var(--cream)]">Recommendations</h3>
+          <h3 className="font-display text-xl uppercase tracking-[0.3em] text-[var(--cream)] sm:text-2xl">
+            Recommendations
+          </h3>
           <div className="mt-6">
             <Recommendations riskLevel={result.risk_level} />
           </div>
+        </div>
+        <div className="mt-10 grid gap-8 lg:grid-cols-[1.1fr_0.9fr]">
+          <InsightChat />
+          <SessionHistory />
         </div>
         <div className="mt-10 flex flex-wrap items-center justify-between gap-4 border-t border-white/10 pt-6">
           <PDFReport targetId="results-report" />

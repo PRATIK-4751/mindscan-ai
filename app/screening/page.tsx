@@ -50,6 +50,20 @@ export default function ScreeningPage() {
         voice_score: voiceResult?.voice_score ?? 0,
         phq9_score: phq9Result?.phq9_score ?? 0,
       });
+      const historyEntry = {
+        id: window.crypto?.randomUUID?.() ?? `${Date.now()}`,
+        timestamp: Date.now(),
+        risk_level: combined.risk_level,
+        final_score: combined.final_score,
+        text_score: combined.text_score,
+        face_score: combined.face_score,
+        voice_score: combined.voice_score,
+        phq9_score: combined.phq9_score,
+      };
+      const existing = window.localStorage.getItem("mindscan-history");
+      const parsed = existing ? JSON.parse(existing) : [];
+      const nextHistory = [historyEntry, ...parsed].slice(0, 10);
+      window.localStorage.setItem("mindscan-history", JSON.stringify(nextHistory));
       const payload = {
         combined,
         textResult,
