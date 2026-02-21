@@ -1,0 +1,160 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --bg-primary: #0a0a0a;
+  --bg-secondary: #111111;
+  --bg-card: #1a1410;
+  --rust: #c0392b;
+  --amber-gold: #f5a623;
+  --cream: #e8dcc8;
+  --brain-grey: #8b8680;
+  --text-primary: #e8dcc8;
+  --text-muted: #8b8680;
+  --danger: #ef4444;
+  --safe: #2d5a27;
+  --font-display: var(--font-bebas);
+  --font-ui: var(--font-space);
+  --font-body: var(--font-inter);
+  --font-mono: var(--font-jetbrains);
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  font-family: var(--font-body), system-ui, sans-serif;
+  letter-spacing: 0.01em;
+}
+
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0.04;
+  z-index: 40;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180' viewBox='0 0 180 180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.75' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='180' height='180' filter='url(%23n)' opacity='0.25'/%3E%3C/svg%3E");
+}
+
+body[data-grain="off"]::before {
+  opacity: 0;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+button {
+  font-family: var(--font-ui), system-ui, sans-serif;
+  background: transparent;
+  border: none;
+  padding: 0;
+  color: inherit;
+}
+
+.font-display {
+  font-family: var(--font-display), system-ui, sans-serif;
+}
+
+.font-ui {
+  font-family: var(--font-ui), system-ui, sans-serif;
+}
+
+.font-body {
+  font-family: var(--font-body), system-ui, sans-serif;
+}
+
+.font-mono {
+  font-family: var(--font-mono), ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono",
+    "Courier New", monospace;
+}
+
+.card-shell {
+  background: var(--bg-card);
+  border: 1px solid rgba(232, 220, 200, 0.1);
+}
+
+.button-outline {
+  border: 1px solid var(--cream);
+  padding: 0.85rem 1.6rem;
+  text-transform: uppercase;
+  letter-spacing: 0.18em;
+}
+
+.button-outline:hover {
+  background: var(--rust);
+  color: var(--cream);
+}
+
+.button-solid {
+  background: var(--rust);
+  color: var(--cream);
+  padding: 1rem 1.6rem;
+  text-transform: uppercase;
+  letter-spacing: 0.18em;
+}
+
+.scanlines {
+  background-image: repeating-linear-gradient(
+    to bottom,
+    rgba(232, 220, 200, 0.02),
+    rgba(232, 220, 200, 0.02) 1px,
+    transparent 1px,
+    transparent 3px
+  );
+}
+
+.barcode {
+  display: grid;
+  grid-auto-flow: column;
+  gap: 2px;
+}
+
+.barcode span {
+  width: 3px;
+  height: 38px;
+  background: rgba(232, 220, 200, 0.45);
+}
+
+.saturn-ring {
+  animation: spin-slow 20s linear infinite;
+}
+
+.ring-pulse {
+  animation: pulse-ring 2s ease-in-out infinite;
+}
+
+@keyframes spin-slow {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes pulse-ring {
+  0%,
+  100% {
+    transform: scale(0.96);
+    opacity: 0.6;
+  }
+  50% {
+    transform: scale(1.04);
+    opacity: 1;
+  }
+}
