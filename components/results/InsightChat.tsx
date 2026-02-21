@@ -205,7 +205,7 @@ export default function InsightChat() {
           Clear Log
         </button>
       </div>
-      <div className="mt-6 max-h-72 space-y-4 overflow-auto border border-white/10 p-4">
+      <div className="mt-6 space-y-4 border border-white/10 p-4">
         {ordered.length === 0 && (
           <p className="text-xs uppercase tracking-[0.3em] text-[var(--text-muted)]">No messages yet.</p>
         )}
