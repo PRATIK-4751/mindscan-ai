@@ -15,7 +15,7 @@ export default function Navbar() {
   const [open, setOpen] = useState(false);
 
   return (
-    <header className="sticky top-0 z-40 border-b border-white/10 bg-[var(--bg-secondary)]/90 backdrop-blur">
+    <header className="sticky top-0 z-40 border-b border-white/5 bg-white/5 shadow-[0_8px_32px_0_rgba(0,0,0,0.37)] backdrop-blur-md">
       <div className="mx-auto flex w-full max-w-6xl items-center justify-between px-6 py-4">
         <Link href="/" className="font-display text-2xl tracking-[0.35em] text-[var(--cream)]">
           MINDSCAN
@@ -33,7 +33,7 @@ export default function Navbar() {
         </button>
       </div>
       {open && (
-        <div className="border-t border-white/10 bg-[var(--bg-secondary)] px-6 py-6 md:hidden">
+        <div className="border-t border-white/5 bg-white/10 backdrop-blur-sm px-6 py-6 md:hidden">
           <div className="flex flex-col gap-4 text-xs uppercase tracking-[0.25em] text-[var(--text-muted)]">
             {links.map((link) => (
               <Link key={link.href} href={link.href} onClick={() => setOpen(false)} className="hover:text-[var(--cream)]">
