@@ -99,7 +99,7 @@ export default function ScreeningPage() {
     <main className="relative min-h-screen bg-[#1a0a08] text-[var(--cream)]">
       <div className="pointer-events-none fixed inset-0 -z-10 bg-[url('/notice.jpg')] bg-cover bg-center opacity-20" />
       <div className="border-t-[3px] border-[var(--amber-gold)]" />
-      <section className="mx-auto w-full max-w-6xl px-6 py-12">
+      <section className="mx-auto w-full max-w-6xl px-6 pt-32 pb-12">
         <div className="mb-8 flex flex-wrap gap-3">
           {tabs.map((tab) => {
             const active = tab.key === activeTab;

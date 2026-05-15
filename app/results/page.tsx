@@ -63,7 +63,7 @@ export default function ResultsPage() {
     <main className="relative min-h-screen text-[var(--cream)]">
       <div className="fixed inset-0 -z-10 bg-[url('/brain.jpg')] bg-cover bg-center opacity-10" />
       <div className="fixed inset-0 -z-10 bg-black/90" />
-      <div id="results-report" className="mx-auto w-full max-w-6xl px-6 py-16">
+      <div id="results-report" className="mx-auto w-full max-w-6xl px-6 pt-32 pb-16">
         <div className="grid gap-10 lg:grid-cols-[1.1fr_1fr]">
           <RiskGauge score={result.final_score * 100} riskLevel={result.risk_level} />
           <ScoreBreakdown scores={scores} />
