@@ -16,8 +16,16 @@ const links = [
 
 export default function Navbar() {
   const [open, setOpen]         = useState(false);
+  const [scrolled, setScrolled] = useState(false);
   const pathname                = usePathname();
   const { user, signOut }       = useAuth();
+
+  // Handle scroll state for glass effect
+  useEffect(() => {
+    const onScroll = () => setScrolled(window.scrollY > 20);
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
 
   // Close mobile menu on route change
   useEffect(() => { setOpen(false); }, [pathname]);
@@ -45,12 +53,12 @@ export default function Navbar() {
           >
             {/* Eye icon frame */}
             <div
-              className="relative flex items-center justify-center w-[3.25rem] h-[3.25rem] shrink-0 overflow-hidden"
+              className="relative flex items-center justify-center w-[3.25rem] h-[3.25rem] shrink-0 overflow-hidden transition-all duration-500"
               style={{ 
-                background: "rgba(10, 8, 6, 0.4)",
-                backdropFilter: "blur(12px) saturate(180%)",
-                border: "1px solid rgba(245,166,35,0.3)",
-                boxShadow: "0 8px 32px rgba(0,0,0,0.4)"
+                background: scrolled ? "rgba(10, 8, 6, 0.6)" : "transparent",
+                backdropFilter: scrolled ? "blur(12px) saturate(180%)" : "none",
+                border: scrolled ? "1px solid rgba(245,166,35,0.4)" : "1px solid rgba(245,166,35,0.15)",
+                boxShadow: scrolled ? "0 8px 32px rgba(0,0,0,0.4)" : "none"
               }}
             >
               <svg viewBox="0 0 24 24" fill="none" width="20" height="20" className="opacity-90">
@@ -97,12 +105,12 @@ export default function Navbar() {
 
           {/* ── DESKTOP NAV (Top Right Floating Pill) ── */}
           <nav 
-            className="pointer-events-auto hidden lg:flex items-center gap-1 p-1.5"
+            className="pointer-events-auto hidden lg:flex items-center gap-1 p-1.5 transition-all duration-500"
             style={{
-              background: "rgba(10, 8, 6, 0.4)",
-              backdropFilter: "blur(16px) saturate(180%)",
-              border: "1px solid rgba(232,220,200,0.08)",
-              boxShadow: "0 8px 32px rgba(0,0,0,0.4)",
+              background: scrolled ? "rgba(10, 8, 6, 0.6)" : "transparent",
+              backdropFilter: scrolled ? "blur(16px) saturate(180%)" : "none",
+              border: scrolled ? "1px solid rgba(232,220,200,0.12)" : "1px solid transparent",
+              boxShadow: scrolled ? "0 8px 32px rgba(0,0,0,0.4)" : "none",
               borderRadius: "100px", // Perfect pill
             }}
           >
@@ -165,12 +173,12 @@ export default function Navbar() {
           {/* ── MOBILE TOGGLE ── */}
           <button
             onClick={() => setOpen((p) => !p)}
-            className="pointer-events-auto lg:hidden flex items-center justify-center w-12 h-12"
+            className="pointer-events-auto lg:hidden flex items-center justify-center w-12 h-12 transition-all duration-500 rounded-full"
             style={{
-              background: "rgba(10, 8, 6, 0.4)",
-              backdropFilter: "blur(12px) saturate(180%)",
-              border: "1px solid rgba(232,220,200,0.15)",
-              boxShadow: "0 8px 32px rgba(0,0,0,0.4)"
+              background: scrolled ? "rgba(10, 8, 6, 0.6)" : "transparent",
+              backdropFilter: scrolled ? "blur(12px) saturate(180%)" : "none",
+              border: scrolled ? "1px solid rgba(232,220,200,0.15)" : "1px solid transparent",
+              boxShadow: scrolled ? "0 8px 32px rgba(0,0,0,0.4)" : "none"
             }}
           >
             {open ? <X size={20} color="#E8DCC8" /> : <Menu size={20} color="#E8DCC8" />}
