@@ -4,6 +4,9 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import ThemeToggle from "./ThemeToggle";
+import { useAuth } from "./AuthProvider";
+import GoogleSignInButton from "./GoogleSignInButton";
+import { Menu, X } from "lucide-react";
 
 const links = [
   { label: "Home",      code: "01", href: "/" },
@@ -13,59 +16,44 @@ const links = [
 
 export default function Navbar() {
   const [open, setOpen]         = useState(false);
-  const [scrolled, setScrolled] = useState(false);
   const pathname                = usePathname();
-
-  useEffect(() => {
-    const onScroll = () => setScrolled(window.scrollY > 20);
-    window.addEventListener("scroll", onScroll, { passive: true });
-    return () => window.removeEventListener("scroll", onScroll);
-  }, []);
+  const { user, signOut }       = useAuth();
 
   // Close mobile menu on route change
   useEffect(() => { setOpen(false); }, [pathname]);
 
+  // Prevent scrolling when mobile menu is open
+  useEffect(() => {
+    if (open) {
+      document.body.style.overflow = "hidden";
+    } else {
+      document.body.style.overflow = "auto";
+    }
+    return () => { document.body.style.overflow = "auto"; };
+  }, [open]);
+
   return (
     <>
-      <header
-        className="fixed top-0 left-0 right-0 z-50"
-        style={{
-          /* Pure glass — starts completely transparent, gains tint on scroll */
-          background: scrolled
-            ? "rgba(4, 2, 1, 0.72)"
-            : "rgba(0, 0, 0, 0.08)",
-          backdropFilter:         `blur(${scrolled ? 22 : 8}px) saturate(160%)`,
-          WebkitBackdropFilter:   `blur(${scrolled ? 22 : 8}px) saturate(160%)`,
-          borderBottom:           scrolled
-            ? "1px solid rgba(245,166,35,0.18)"
-            : "1px solid rgba(255,255,255,0.05)",
-          boxShadow: scrolled
-            ? "0 4px 32px rgba(0,0,0,0.5)"
-            : "none",
-          transition: "background 0.5s ease, backdrop-filter 0.5s ease, border-color 0.5s ease, box-shadow 0.5s ease",
-        }}
-      >
-        {/* Amber top hairline — always visible */}
-        <div
-          className="absolute top-0 left-0 right-0 h-[2px] pointer-events-none"
-          style={{
-            background:
-              "linear-gradient(90deg, transparent 0%, #F5A623 25%, #C0392B 60%, transparent 100%)",
-            opacity: scrolled ? 0.9 : 0.4,
-            transition: "opacity 0.5s ease",
-          }}
-        />
-
-        <div className="mx-auto flex w-full max-w-7xl items-center justify-between px-6 py-3.5">
-
-          {/* ── BRAND ── */}
-          <Link href="/" className="group flex items-center gap-3 select-none">
+      {/* ── FLOATING HEADER ── */}
+      <header className="fixed top-0 left-0 right-0 z-50 pointer-events-none pt-6 px-6 sm:px-8">
+        <div className="mx-auto flex w-full max-w-7xl items-start justify-between">
+          
+          {/* ── BRAND (Top Left Floating) ── */}
+          <Link 
+            href="/" 
+            className="pointer-events-auto group flex items-center gap-4 select-none"
+          >
             {/* Eye icon frame */}
             <div
-              className="relative flex items-center justify-center w-8 h-8 shrink-0 overflow-hidden"
-              style={{ border: "1px solid rgba(245,166,35,0.4)" }}
+              className="relative flex items-center justify-center w-[3.25rem] h-[3.25rem] shrink-0 overflow-hidden"
+              style={{ 
+                background: "rgba(10, 8, 6, 0.4)",
+                backdropFilter: "blur(12px) saturate(180%)",
+                border: "1px solid rgba(245,166,35,0.3)",
+                boxShadow: "0 8px 32px rgba(0,0,0,0.4)"
+              }}
             >
-              <svg viewBox="0 0 24 24" fill="none" width="16" height="16">
+              <svg viewBox="0 0 24 24" fill="none" width="20" height="20" className="opacity-90">
                 <path
                   d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8S1 12 1 12z"
                   stroke="#F5A623"
@@ -78,27 +66,28 @@ export default function Navbar() {
                 style={{ background: "rgba(245,166,35,0.7)", top: "50%" }} />
             </div>
 
-            {/* Word mark — always cream, never adapts to theme */}
-            <div className="flex flex-col leading-none">
+            {/* Word mark */}
+            <div className="hidden sm:flex flex-col leading-none justify-center">
               <span
                 className="font-display tracking-[0.42em]"
                 style={{
                   fontFamily: "var(--font-display), sans-serif",
-                  fontSize:   "1.25rem",
-                  color:      "#E8DCC8",          /* hardcoded — always cream */
-                  textShadow: scrolled ? "none" : "0 0 20px rgba(232,220,200,0.3)",
-                  transition: "text-shadow 0.4s ease",
+                  fontSize:   "1.4rem",
+                  color:      "#E8DCC8",          
+                  textShadow: "0 4px 12px rgba(0,0,0,0.9)",
                 }}
               >
                 MINDSCAN
               </span>
               <span
+                className="mt-1"
                 style={{
                   fontFamily: "var(--font-mono), monospace",
-                  fontSize:   "0.48rem",
-                  letterSpacing: "0.28em",
+                  fontSize:   "0.5rem",
+                  letterSpacing: "0.32em",
                   color:      "#F5A623",
-                  opacity:    0.55,
+                  textShadow: "0 2px 8px rgba(0,0,0,0.8)",
+                  opacity:    0.8,
                 }}
               >
                 PERCEPTION ENGINE v1.0
@@ -106,168 +95,161 @@ export default function Navbar() {
             </div>
           </Link>
 
-          {/* ── DESKTOP NAV ── */}
-          <nav className="hidden md:flex items-center">
-            {links.map((link, i) => {
-              const active = pathname === link.href;
-              return (
-                <Link
-                  key={link.href}
-                  href={link.href}
-                  className="group relative flex items-center gap-1.5 px-4 py-2 mx-0.5 transition-all duration-200"
-                  style={{
-                    background:   active ? "rgba(192,57,43,0.12)" : "transparent",
-                    border:       active
-                      ? "1px solid rgba(192,57,43,0.45)"
-                      : "1px solid transparent",
-                  }}
-                >
-                  <span
-                    style={{
-                      fontFamily:    "var(--font-mono), monospace",
-                      fontSize:      "0.56rem",
-                      letterSpacing: "0.1em",
-                      color:         active ? "#C0392B" : "rgba(139,134,128,0.55)",
-                      transition:    "color 0.2s",
-                    }}
-                  >
-                    {link.code}
-                  </span>
-                  <span
-                    className="group-hover:text-[#F5A623] transition-colors duration-200"
-                    style={{
-                      fontFamily:    "var(--font-mono), monospace",
-                      fontSize:      "0.65rem",
-                      letterSpacing: "0.22em",
-                      textTransform: "uppercase",
-                      color:         active ? "#E8DCC8" : "#8B8680",
-                    }}
-                  >
-                    {link.label}
-                  </span>
-
-                  {/* Active underline dot */}
-                  {active && (
-                    <span
-                      className="absolute bottom-0.5 left-1/2 -translate-x-1/2 w-1 h-1 rounded-full"
-                      style={{ background: "#C0392B" }}
-                    />
-                  )}
-                </Link>
-              );
-            })}
-
-            {/* Separator */}
-            <div
-              className="mx-3 h-5 w-px"
-              style={{ background: "rgba(232,220,200,0.15)" }}
-            />
-
-            <ThemeToggle />
-          </nav>
-
-          {/* ── MOBILE HAMBURGER ── */}
-          <button
-            onClick={() => setOpen((p) => !p)}
-            aria-label="Toggle menu"
-            className="md:hidden flex flex-col items-center justify-center w-9 h-9 gap-[5px] transition-all duration-200"
+          {/* ── DESKTOP NAV (Top Right Floating Pill) ── */}
+          <nav 
+            className="pointer-events-auto hidden lg:flex items-center gap-1 p-1.5"
             style={{
-              border:     "1px solid rgba(232,220,200,0.2)",
-              background: "rgba(0,0,0,0.3)",
+              background: "rgba(10, 8, 6, 0.4)",
+              backdropFilter: "blur(16px) saturate(180%)",
+              border: "1px solid rgba(232,220,200,0.08)",
+              boxShadow: "0 8px 32px rgba(0,0,0,0.4)",
+              borderRadius: "100px", // Perfect pill
             }}
           >
-            {[0, 1, 2].map((i) => (
-              <span
-                key={i}
-                className="block h-px transition-all duration-300 origin-center"
-                style={{
-                  background: "#E8DCC8",
-                  width:       i === 1 ? (open ? "0px" : "14px") : "20px",
-                  opacity:     i === 1 && open ? 0 : 1,
-                  transform:
-                    open
-                      ? i === 0
-                        ? "translateY(6px) rotate(45deg)"
-                        : i === 2
-                        ? "translateY(-6px) rotate(-45deg)"
-                        : "none"
-                      : "none",
-                }}
-              />
-            ))}
-          </button>
-        </div>
-
-        {/* ── MOBILE DRAWER ── */}
-        <div
-          className="md:hidden overflow-hidden"
-          style={{
-            maxHeight:  open ? "280px" : "0px",
-            transition: "max-height 0.4s cubic-bezier(0.4, 0, 0.2, 1)",
-            background: "rgba(4, 2, 1, 0.94)",
-            backdropFilter: "blur(20px)",
-            borderTop:  open ? "1px solid rgba(245,166,35,0.12)" : "none",
-          }}
-        >
-          <div className="px-6 py-5 flex flex-col gap-1">
             {links.map((link) => {
               const active = pathname === link.href;
               return (
                 <Link
                   key={link.href}
                   href={link.href}
-                  className="flex items-center gap-3 px-3 py-3 transition-all duration-200"
+                  className="group relative flex items-center px-5 py-2.5 rounded-full transition-all duration-300"
                   style={{
-                    borderLeft: active
-                      ? "2px solid #C0392B"
-                      : "2px solid transparent",
-                    background: active ? "rgba(192,57,43,0.08)" : "transparent",
+                    background: active ? "rgba(232,220,200,0.08)" : "transparent",
                   }}
                 >
                   <span
-                    style={{
-                      fontFamily: "var(--font-mono), monospace",
-                      fontSize:   "0.55rem",
-                      color:      "#C0392B",
-                    }}
-                  >
-                    {link.code}
-                  </span>
-                  <span
+                    className="transition-colors duration-300"
                     style={{
                       fontFamily:    "var(--font-mono), monospace",
-                      fontSize:      "0.7rem",
-                      letterSpacing: "0.22em",
+                      fontSize:      "0.65rem",
+                      letterSpacing: "0.2em",
                       textTransform: "uppercase",
-                      color:         active ? "#E8DCC8" : "#8B8680",
+                      color:         active ? "#E8DCC8" : "rgba(232,220,200,0.45)",
                     }}
                   >
                     {link.label}
                   </span>
+                  {/* Active glow */}
+                  {active && (
+                    <span 
+                      className="absolute inset-0 rounded-full" 
+                      style={{ boxShadow: "inset 0 0 12px rgba(232,220,200,0.05)" }}
+                    />
+                  )}
                 </Link>
               );
             })}
 
-            <div
-              className="mt-3 pt-3 flex items-center gap-3"
-              style={{ borderTop: "1px solid rgba(232,220,200,0.08)" }}
-            >
-              <span
+            <div className="w-px h-6 mx-2" style={{ background: "rgba(232,220,200,0.15)" }} />
+
+            {user ? (
+              <button
+                onClick={signOut}
+                className="px-4 font-mono text-[0.65rem] uppercase tracking-[0.2em] text-[rgba(232,220,200,0.45)] hover:text-[#C0392B] transition-colors duration-200"
+              >
+                Sign Out
+              </button>
+            ) : (
+              <div className="mr-1">
+                <GoogleSignInButton />
+              </div>
+            )}
+
+            <div className="w-px h-6 mx-2" style={{ background: "rgba(232,220,200,0.15)" }} />
+            
+            <div className="pr-2 pl-1">
+              <ThemeToggle />
+            </div>
+          </nav>
+
+          {/* ── MOBILE TOGGLE ── */}
+          <button
+            onClick={() => setOpen((p) => !p)}
+            className="pointer-events-auto lg:hidden flex items-center justify-center w-12 h-12"
+            style={{
+              background: "rgba(10, 8, 6, 0.4)",
+              backdropFilter: "blur(12px) saturate(180%)",
+              border: "1px solid rgba(232,220,200,0.15)",
+              boxShadow: "0 8px 32px rgba(0,0,0,0.4)"
+            }}
+          >
+            {open ? <X size={20} color="#E8DCC8" /> : <Menu size={20} color="#E8DCC8" />}
+          </button>
+        </div>
+      </header>
+
+      {/* ── MOBILE FULLSCREEN MENU ── */}
+      <div 
+        className={`fixed inset-0 z-40 transition-all duration-700 ease-[cubic-bezier(0.22,1,0.36,1)] ${
+          open 
+            ? 'opacity-100 pointer-events-auto' 
+            : 'opacity-0 pointer-events-none'
+        }`}
+        style={{
+          background: "rgba(4, 2, 1, 0.98)",
+          backdropFilter: "blur(24px)",
+        }}
+      >
+        <div className="flex flex-col items-center justify-center h-full gap-8 px-6">
+          {links.map((link, i) => {
+             const active = pathname === link.href;
+             return (
+              <Link
+                key={link.href}
+                href={link.href}
+                className="text-center group"
                 style={{
-                  fontFamily:    "var(--font-mono), monospace",
-                  fontSize:      "0.6rem",
-                  letterSpacing: "0.2em",
-                  color:         "#8B8680",
-                  textTransform: "uppercase",
+                  transform: open ? 'translateY(0)' : 'translateY(30px)',
+                  opacity: open ? 1 : 0,
+                  transition: `transform 0.6s cubic-bezier(0.22,1,0.36,1) ${i * 100 + 100}ms, opacity 0.6s ease ${i * 100 + 100}ms`
                 }}
               >
-                Theme
+                <span className="block font-mono text-[0.65rem] tracking-[0.4em] text-[#C0392B] mb-3 opacity-70 group-hover:opacity-100 transition-opacity">
+                  {link.code}
+                </span>
+                <span 
+                  className="font-display text-5xl tracking-[0.25em] transition-colors duration-300"
+                  style={{ 
+                    color: active ? "#E8DCC8" : "rgba(232,220,200,0.3)",
+                    textShadow: active ? "0 0 20px rgba(232,220,200,0.2)" : "none"
+                  }}
+                >
+                  {link.label}
+                </span>
+              </Link>
+             )
+          })}
+
+          <div 
+            className="mt-12 flex flex-col items-center gap-8 w-full max-w-xs"
+            style={{
+              transform: open ? 'translateY(0)' : 'translateY(30px)',
+              opacity: open ? 1 : 0,
+              transition: `transform 0.6s cubic-bezier(0.22,1,0.36,1) 400ms, opacity 0.6s ease 400ms`
+            }}
+          >
+            <div className="flex items-center gap-6 w-full justify-center">
+              <span className="font-mono text-[0.65rem] uppercase tracking-[0.2em] text-[#8B8680]">
+                Interface Theme
               </span>
               <ThemeToggle />
             </div>
+
+            <div className="w-full h-px bg-[rgba(232,220,200,0.1)]" />
+
+            {user ? (
+              <button
+                onClick={signOut}
+                className="font-mono text-[0.7rem] uppercase tracking-[0.2em] text-[rgba(232,220,200,0.5)] hover:text-[#C0392B] transition-colors"
+              >
+                Sign Out ({user.email})
+              </button>
+            ) : (
+              <GoogleSignInButton />
+            )}
           </div>
         </div>
-      </header>
+      </div>
     </>
   );
 }

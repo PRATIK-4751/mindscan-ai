@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import { Bebas_Neue, Space_Grotesk, Inter, JetBrains_Mono } from "next/font/google";
 import Navbar from "../components/shared/Navbar";
 import ConsentModal from "../components/shared/ConsentModal";
+import { AuthProvider } from "../components/shared/AuthProvider";
 
 const bebas = Bebas_Neue({ subsets: ["latin"], weight: ["400"], variable: "--font-bebas" });
 const space = Space_Grotesk({ subsets: ["latin"], weight: ["400", "500", "600"], variable: "--font-space" });
@@ -19,14 +20,13 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en">
       <body className={`${bebas.variable} ${space.variable} ${inter.variable} ${jetbrains.variable} bg-[var(--bg-primary)]`}>
-        <div className="min-h-screen">
-          <Navbar />
-          {/* pt-16 offsets the fixed navbar height */}
-          <div className="pt-16">
+        <AuthProvider>
+          <div className="min-h-screen">
+            <Navbar />
             {children}
+            <ConsentModal />
           </div>
-          <ConsentModal />
-        </div>
+        </AuthProvider>
       </body>
     </html>
   );
