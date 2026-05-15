@@ -2,33 +2,46 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ── NIGHT MODE (default) ── */
 :root {
-  --bg-primary: #0a0a0a;
+  --bg-primary:   #0a0a0a;
   --bg-secondary: #111111;
-  --bg-card: #1a1410;
-  --card-border: rgba(232, 220, 200, 0.1);
-  --rust: #c0392b;
-  --amber-gold: #f5a623;
-  --cream: #e8dcc8;
-  --brain-grey: #8b8680;
+  --bg-card:      #1a1410;
+  --card-border:  rgba(232, 220, 200, 0.08);
+  --rust:         #c0392b;
+  --amber-gold:   #f5a623;
+  --cream:        #e8dcc8;          /* always cream — don't override */
+  --brain-grey:   #8b8680;
   --text-primary: #e8dcc8;
-  --text-muted: #8b8680;
-  --danger: #ef4444;
-  --safe: #2d5a27;
+  --text-muted:   #8b8680;
+  --text-on-dark: #e8dcc8;         /* readable on dark bg */
+  --text-on-light: #1a1410;        /* readable on light bg */
+  --danger:       #ef4444;
+  --safe:         #2d5a27;
   --font-display: var(--font-bebas);
-  --font-ui: var(--font-space);
-  --font-body: var(--font-inter);
-  --font-mono: var(--font-jetbrains);
+  --font-ui:      var(--font-space);
+  --font-body:    var(--font-inter);
+  --font-mono:    var(--font-jetbrains);
+  color-scheme: dark;
 }
 
+/* ── DAY MODE ── */
 body[data-theme="day"] {
-  --bg-primary: #f6efe5;
+  --bg-primary:   #f6efe5;
   --bg-secondary: #efe4d2;
-  --bg-card: #f9f2e6;
-  --card-border: rgba(26, 20, 16, 0.12);
-  --cream: #1a1410;
+  --bg-card:      #f9f2e6;
+  --card-border:  rgba(26, 20, 16, 0.12);
   --text-primary: #1a1410;
-  --text-muted: #6a6158;
+  --text-muted:   #6a6158;
+  /* cream stays cream — it's a brand color, not a text color */
+  color-scheme: light;
+}
+
+/* Smooth CSS var transitions on theme switch */
+body {
+  transition:
+    background-color 0.4s ease,
+    color 0.4s ease;
 }
 
 *,
@@ -50,13 +63,14 @@ body {
   letter-spacing: 0.01em;
 }
 
+/* Film grain overlay */
 body::before {
   content: "";
   position: fixed;
   inset: 0;
   pointer-events: none;
   opacity: 0.04;
-  z-index: 40;
+  z-index: 9999;
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180' viewBox='0 0 180 180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.75' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='180' height='180' filter='url(%23n)' opacity='0.25'/%3E%3C/svg%3E");
 }
 
@@ -75,45 +89,47 @@ button {
   border: none;
   padding: 0;
   color: inherit;
+  cursor: pointer;
 }
 
-.font-display {
-  font-family: var(--font-display), system-ui, sans-serif;
-}
-
-.font-ui {
-  font-family: var(--font-ui), system-ui, sans-serif;
-}
-
-.font-body {
-  font-family: var(--font-body), system-ui, sans-serif;
-}
-
-.font-mono {
-  font-family: var(--font-mono), ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono",
-    "Courier New", monospace;
-}
+/* ── Utility classes ── */
+.font-display { font-family: var(--font-display), system-ui, sans-serif; }
+.font-ui      { font-family: var(--font-ui), system-ui, sans-serif; }
+.font-body    { font-family: var(--font-body), system-ui, sans-serif; }
+.font-mono    { font-family: var(--font-mono), ui-monospace, Menlo, monospace; }
 
 .card-shell {
   background: var(--bg-card);
   border: 1px solid var(--card-border);
+  transition: background-color 0.4s ease, border-color 0.4s ease;
 }
 
+/* Brand cream — never changes with theme */
+.text-brand    { color: #E8DCC8 !important; }
+.text-rust     { color: #C0392B !important; }
+.text-amber    { color: #F5A623 !important; }
+
+/* Adaptive text — follows theme */
+.text-adaptive       { color: var(--text-primary); }
+.text-adaptive-muted { color: var(--text-muted); }
+
 .button-outline {
-  border: 1px solid var(--cream);
+  border: 1px solid #E8DCC8;
+  color: #E8DCC8;
   padding: 0.85rem 1.6rem;
   text-transform: uppercase;
   letter-spacing: 0.18em;
+  transition: background 0.2s, color 0.2s;
 }
-
 .button-outline:hover {
-  background: var(--rust);
-  color: var(--cream);
+  background: #C0392B;
+  border-color: #C0392B;
+  color: #E8DCC8;
 }
 
 .button-solid {
-  background: var(--rust);
-  color: var(--cream);
+  background: #C0392B;
+  color: #E8DCC8;
   padding: 1rem 1.6rem;
   text-transform: uppercase;
   letter-spacing: 0.18em;
@@ -134,38 +150,41 @@ button {
   grid-auto-flow: column;
   gap: 2px;
 }
-
 .barcode span {
   width: 3px;
   height: 38px;
   background: rgba(232, 220, 200, 0.45);
 }
 
-.saturn-ring {
-  animation: spin-slow 20s linear infinite;
-}
-
-.ring-pulse {
-  animation: pulse-ring 2s ease-in-out infinite;
-}
+/* ── Animations ── */
+.saturn-ring { animation: spin-slow 20s linear infinite; }
+.ring-pulse  { animation: pulse-ring 2s ease-in-out infinite; }
 
 @keyframes spin-slow {
-  from {
-    transform: rotate(0deg);
-  }
-  to {
-    transform: rotate(360deg);
-  }
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
 }
 
 @keyframes pulse-ring {
-  0%,
-  100% {
-    transform: scale(0.96);
-    opacity: 0.6;
-  }
-  50% {
-    transform: scale(1.04);
-    opacity: 1;
-  }
+  0%, 100% { transform: scale(0.96); opacity: 0.6; }
+  50%       { transform: scale(1.04); opacity: 1; }
+}
+
+@keyframes scan-line {
+  0%   { transform: translateY(-8px); opacity: 0; }
+  20%  { opacity: 1; }
+  80%  { opacity: 1; }
+  100% { transform: translateY(8px); opacity: 0; }
+}
+.animate-scan-line { animation: scan-line 2s ease-in-out infinite; }
+
+/* ── View Transition (theme toggle) ── */
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation: none;
+  mix-blend-mode: normal;
+}
+
+html[data-magicui-theme-vt="active"]::view-transition-group(root) {
+  animation-duration: var(--magicui-theme-toggle-vt-duration, 500ms);
 }

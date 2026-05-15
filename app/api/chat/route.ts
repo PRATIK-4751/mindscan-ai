@@ -31,6 +31,9 @@ export async function POST(request: Request) {
   };
 
   try {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 30_000);
+
     const response = await fetch(apiUrl, {
       method: "POST",
       headers: {
@@ -38,8 +41,9 @@ export async function POST(request: Request) {
         Authorization: `Bearer ${apiKey}`,
       },
       body: JSON.stringify(payload),
-      timeout: 30000,
+      signal: controller.signal,
     });
+    clearTimeout(timer);
 
     if (!response.ok) {
       const text = await response.text();

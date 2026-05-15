@@ -21,7 +21,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body className={`${bebas.variable} ${space.variable} ${inter.variable} ${jetbrains.variable} bg-[var(--bg-primary)]`}>
         <div className="min-h-screen">
           <Navbar />
-          {children}
+          {/* pt-16 offsets the fixed navbar height */}
+          <div className="pt-16">
+            {children}
+          </div>
           <ConsentModal />
         </div>
       </body>
