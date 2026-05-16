@@ -66,8 +66,6 @@ export default function AudioTherapy({ riskLevel }: { riskLevel: string }) {
     if (percent > 1) percent = 1;
     setProgress(percent);
     
-    // playerRef.current might be the dynamic wrapper or the actual player depending on react-player internals
-    // but typically getInternalPlayer() or seekTo() is directly exposed.
     if (apply && playerRef.current && typeof playerRef.current.seekTo === 'function') {
       playerRef.current.seekTo(percent, "fraction");
     }
@@ -104,11 +102,11 @@ export default function AudioTherapy({ riskLevel }: { riskLevel: string }) {
       onMouseLeave={(e: any) => isSeeking && handleSeekMouseUp(e)}
     >
       <div 
-        className="absolute inset-0 opacity-40 blur-xl saturate-150 transition-all duration-1000"
+        className="absolute inset-0 opacity-40 blur-xl saturate-150 transition-all duration-1000 z-0"
         style={{ backgroundImage: `url(${thumbnailUrl})`, backgroundSize: 'cover', backgroundPosition: 'center' }}
       />
       
-      <div className="absolute inset-0 bg-black/70" />
+      <div className="absolute inset-0 bg-black/70 z-0" />
 
       {/* Retro scanlines effect */}
       <div className="absolute inset-0 bg-[linear-gradient(transparent_50%,rgba(0,0,0,0.25)_50%)] bg-[length:100%_4px] pointer-events-none opacity-50 z-10"></div>
@@ -122,14 +120,14 @@ export default function AudioTherapy({ riskLevel }: { riskLevel: string }) {
         </div>
 
         <div className="flex flex-col sm:flex-row items-center gap-6 sm:gap-10">
-          <div className="relative h-48 w-48 shrink-0 overflow-hidden border border-white/20 shadow-[2px_2px_0px_rgba(255,255,255,0.2)] bg-black p-1 sm:h-40 sm:w-40">
+          <div className="relative h-48 w-48 shrink-0 overflow-hidden border border-white/20 shadow-[2px_2px_0px_rgba(255,255,255,0.2)] bg-black p-1 sm:h-40 sm:w-40 z-30">
             <img 
               src={thumbnailUrl} 
               alt="Cover Art" 
-              className={`h-full w-full object-cover transition-all duration-1000 ${isPlaying ? 'scale-105 brightness-110' : 'scale-100 grayscale-[30%]'}`}
+              className={`relative z-10 h-full w-full object-cover transition-all duration-1000 ${isPlaying ? 'scale-105 brightness-110' : 'scale-100 grayscale-[30%]'}`}
             />
             {isPlaying && (
-              <div className="absolute bottom-2 right-2 flex items-end gap-1 h-4 z-30">
+              <div className="absolute bottom-2 right-2 flex items-end gap-1 h-4 z-40">
                 <span className="w-1 h-full bg-[var(--amber-gold)] animate-[bounce_0.8s_infinite]"></span>
                 <span className="w-1 h-3/4 bg-[var(--amber-gold)] animate-[bounce_1.1s_infinite]"></span>
                 <span className="w-1 h-full bg-[var(--amber-gold)] animate-[bounce_0.9s_infinite]"></span>
@@ -193,8 +191,12 @@ export default function AudioTherapy({ riskLevel }: { riskLevel: string }) {
         </div>
       </div>
 
-      {/* Do NOT use display: none (className="hidden") because browsers block invisible iframes from playing! */}
-      <div className="absolute w-0 h-0 overflow-hidden opacity-0 pointer-events-none -z-50">
+      {/* 
+        CRITICAL FIX FOR YOUTUBE AUTOPLAY/IFRAME BLOCKING:
+        Browsers block invisible (opacity:0, w:0, display:none, left:-9999px) iframes from playing media.
+        We must render the iframe at a real size, but hide it underneath the UI with z-index.
+      */}
+      <div className="absolute inset-0 w-full h-full z-[-1] overflow-hidden opacity-[0.01] pointer-events-none">
         {isMounted && (() => {
           const Player = ReactPlayer as any;
           return (
@@ -205,8 +207,13 @@ export default function AudioTherapy({ riskLevel }: { riskLevel: string }) {
               controls={false}
               onProgress={handleProgress}
               onDuration={(d: number) => setDuration(d)}
-              width="1px"
-              height="1px"
+              width="100%"
+              height="100%"
+              config={{
+                youtube: {
+                  playerVars: { autoplay: 1, playsinline: 1 }
+                }
+              }}
             />
           );
         })()}
