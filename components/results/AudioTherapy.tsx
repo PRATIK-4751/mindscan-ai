@@ -1,13 +1,17 @@
 "use client";
 import { useEffect, useState, useRef } from "react";
-import { Play, Pause, SkipForward, SkipBack, Volume2, Repeat, Shuffle } from "lucide-react";
+import { Play, Pause, Volume2 } from "lucide-react";
+import ReactPlayer from 'react-player/youtube';
 
 export default function AudioTherapy({ riskLevel }: { riskLevel: string }) {
   const [tracks, setTracks] = useState<{videoId: string, title: string}[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
-  const [progress, setProgress] = useState(0);
-  const iframeRef = useRef<HTMLIFrameElement>(null);
+  const [progress, setProgress] = useState(0); 
+  const [duration, setDuration] = useState(0);
+  const playerRef = useRef<ReactPlayer>(null);
+  const progressRef = useRef<HTMLDivElement>(null);
+  const [isSeeking, setIsSeeking] = useState(false);
 
   useEffect(() => {
     let query = "relaxing meditation music";
@@ -21,47 +25,70 @@ export default function AudioTherapy({ riskLevel }: { riskLevel: string }) {
       });
   }, [riskLevel]);
 
-  // Fake progress bar for visual effect
-  useEffect(() => {
-    let interval: NodeJS.Timeout;
-    if (isPlaying) {
-      interval = setInterval(() => {
-        setProgress(p => (p >= 100 ? 0 : p + 0.1));
-      }, 100);
-    }
-    return () => clearInterval(interval);
-  }, [isPlaying]);
+  const togglePlay = () => setIsPlaying(!isPlaying);
 
-  const togglePlay = () => {
-    if (!iframeRef.current || tracks.length === 0) return;
-    const msg = isPlaying ? '{"event":"command","func":"pauseVideo","args":""}' : '{"event":"command","func":"playVideo","args":""}';
-    iframeRef.current.contentWindow?.postMessage(msg, '*');
-    setIsPlaying(!isPlaying);
+  const handleSeekMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
+    setIsSeeking(true);
+    updateSeek(e);
   };
 
-  const skipTrack = (direction: 1 | -1) => {
-    if (tracks.length === 0) return;
-    let nextIndex = currentIndex + direction;
-    if (nextIndex >= tracks.length) nextIndex = 0;
-    if (nextIndex < 0) nextIndex = tracks.length - 1;
-    setCurrentIndex(nextIndex);
-    setProgress(0);
-    setIsPlaying(true);
+  const handleSeekMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (isSeeking) {
+      updateSeek(e);
+    }
+  };
+
+  const handleSeekMouseUp = (e: React.MouseEvent<HTMLDivElement>) => {
+    setIsSeeking(false);
+    updateSeek(e, true);
+  };
+
+  const updateSeek = (e: React.MouseEvent<HTMLDivElement>, apply: boolean = false) => {
+    if (!progressRef.current || !playerRef.current) return;
+    const rect = progressRef.current.getBoundingClientRect();
+    let percent = (e.clientX - rect.left) / rect.width;
+    if (percent < 0) percent = 0;
+    if (percent > 1) percent = 1;
+    setProgress(percent);
+    if (apply) {
+      playerRef.current.seekTo(percent, "fraction");
+    }
+  };
+
+  const handleProgress = (state: { played: number, playedSeconds: number }) => {
+    if (!isSeeking) {
+      setProgress(state.played);
+    }
+  };
+
+  const formatTime = (seconds: number) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = Math.floor(seconds % 60);
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 
   if (tracks.length === 0) return null;
   const currentTrack = tracks[currentIndex];
-  const thumbnailUrl = `https://img.youtube.com/vi/${currentTrack.videoId}/hqdefault.jpg`;
+  
+  // Custom images mapped to tracks
+  const customImages = [
+    "/covers/1.jpg", 
+    "/covers/2.jpg", 
+    "/covers/3.jpg"
+  ];
+  const thumbnailUrl = customImages[currentIndex % customImages.length];
 
   return (
-    <div className="relative mt-8 overflow-hidden rounded-2xl border border-white/10 bg-[#0a0a0a] shadow-2xl transition-all duration-500 hover:border-white/20">
-      {/* Blurred Background Image (Samsung style) */}
+    <div 
+      className="relative mt-8 overflow-hidden rounded-2xl border border-white/10 bg-[#0a0a0a] shadow-2xl transition-all duration-500 hover:border-white/20"
+      onMouseUp={(e: any) => isSeeking && handleSeekMouseUp(e)}
+      onMouseLeave={(e: any) => isSeeking && handleSeekMouseUp(e)}
+    >
       <div 
         className="absolute inset-0 opacity-30 blur-3xl saturate-150 transition-all duration-1000"
         style={{ backgroundImage: `url(${thumbnailUrl})`, backgroundSize: 'cover', backgroundPosition: 'center' }}
       />
       
-      {/* Gradient Overlay */}
       <div className="absolute inset-0 bg-gradient-to-t from-black via-black/80 to-transparent" />
 
       <div className="relative z-10 flex flex-col p-4 sm:p-6">
@@ -72,9 +99,8 @@ export default function AudioTherapy({ riskLevel }: { riskLevel: string }) {
           <Volume2 size={16} className="text-white/40 hover:text-white transition-colors cursor-pointer" />
         </div>
 
-        <div className="mt-6 flex flex-col sm:flex-row items-center gap-6">
-          {/* Cover Art */}
-          <div className="relative h-32 w-32 shrink-0 overflow-hidden rounded-xl shadow-2xl sm:h-24 sm:w-24">
+        <div className="mt-6 flex flex-col sm:flex-row items-center gap-6 sm:gap-10">
+          <div className="relative h-40 w-40 shrink-0 overflow-hidden rounded-xl shadow-2xl sm:h-32 sm:w-32">
             <img 
               src={thumbnailUrl} 
               alt="Cover Art" 
@@ -92,73 +118,59 @@ export default function AudioTherapy({ riskLevel }: { riskLevel: string }) {
             )}
           </div>
 
-          {/* Track Info & Controls */}
-          <div className="flex w-full flex-col">
-            <div className="text-center sm:text-left">
-              <h4 className="font-display text-lg sm:text-xl text-white line-clamp-1">
-                {currentTrack.title}
-              </h4>
-              <p className="font-body mt-1 text-sm text-white/50">
-                Curated for {riskLevel}
-              </p>
-            </div>
+          <div className="flex w-full flex-col justify-center">
+            {/* Title & subtitle removed entirely as requested */}
 
-            {/* Progress Bar */}
-            <div className="mt-6 flex items-center gap-3">
-              <span className="font-mono text-[10px] text-white/40">0:00</span>
-              <div className="relative h-1.5 w-full overflow-hidden rounded-full bg-white/10">
-                <div 
-                  className="absolute left-0 top-0 h-full bg-gradient-to-r from-[var(--amber-gold)] to-[var(--rust)] transition-all duration-100"
-                  style={{ width: `${progress}%` }}
-                />
-              </div>
-              <span className="font-mono text-[10px] text-white/40">-:-</span>
-            </div>
-
-            {/* Player Controls (Spotify style) */}
-            <div className="mt-4 flex items-center justify-center sm:justify-between">
-              <div className="hidden sm:flex items-center gap-4 text-white/40">
-                <Shuffle size={18} className="hover:text-white cursor-pointer transition-colors" />
-              </div>
+            <div className="mt-2 flex flex-col items-center sm:items-start w-full">
+              <button 
+                onClick={togglePlay}
+                className="flex h-16 w-16 items-center justify-center rounded-full bg-white text-black transition-transform hover:scale-105 active:scale-95 mb-6"
+              >
+                {isPlaying ? <Pause size={28} fill="currentColor" /> : <Play size={28} fill="currentColor" className="ml-1" />}
+              </button>
               
-              <div className="flex items-center gap-6">
-                <button 
-                  onClick={() => skipTrack(-1)}
-                  className="text-white/60 transition-colors hover:text-white"
+              {/* Seek Bar */}
+              <div className="flex items-center gap-3 w-full max-w-md">
+                <span className="font-mono text-[10px] text-white/40 w-8 text-right">
+                  {formatTime(progress * duration)}
+                </span>
+                <div 
+                  ref={progressRef}
+                  onMouseDown={handleSeekMouseDown}
+                  onMouseMove={handleSeekMouseMove}
+                  className="relative h-3 w-full overflow-hidden rounded-full bg-white/10 cursor-pointer group"
                 >
-                  <SkipBack size={24} fill="currentColor" />
-                </button>
-                <button 
-                  onClick={togglePlay}
-                  className="flex h-14 w-14 items-center justify-center rounded-full bg-white text-black transition-transform hover:scale-105 active:scale-95"
-                >
-                  {isPlaying ? <Pause size={24} fill="currentColor" /> : <Play size={24} fill="currentColor" className="ml-1" />}
-                </button>
-                <button 
-                  onClick={() => skipTrack(1)}
-                  className="text-white/60 transition-colors hover:text-white"
-                >
-                  <SkipForward size={24} fill="currentColor" />
-                </button>
-              </div>
-
-              <div className="hidden sm:flex items-center gap-4 text-white/40">
-                <Repeat size={18} className="hover:text-white cursor-pointer transition-colors" />
+                  <div 
+                    className="absolute left-0 top-0 h-full bg-gradient-to-r from-[var(--amber-gold)] to-[var(--rust)] transition-all duration-75 group-hover:from-[var(--cream)] group-hover:to-[var(--amber-gold)]"
+                    style={{ width: `${progress * 100}%` }}
+                  />
+                </div>
+                <span className="font-mono text-[10px] text-white/40 w-8">
+                  {formatTime(duration)}
+                </span>
               </div>
             </div>
           </div>
         </div>
       </div>
 
-      <iframe 
-        key={currentTrack.videoId}
-        ref={iframeRef}
-        width="0" 
-        height="0" 
-        src={`https://www.youtube.com/embed/${currentTrack.videoId}?enablejsapi=1&controls=0&autoplay=${isPlaying ? 1 : 0}`} 
-        allow="autoplay" 
-        className="hidden"
-      />
+      <div className="hidden">
+        <ReactPlayer 
+          ref={playerRef}
+          url={`https://www.youtube.com/watch?v=${currentTrack.videoId}`}
+          playing={isPlaying}
+          controls={false}
+          onProgress={handleProgress}
+          onDuration={(d) => setDuration(d)}
+          width="0"
+          height="0"
+          config={{
+            youtube: {
+              playerVars: { showinfo: 0, modestbranding: 1 }
+            }
+          }}
+        />
+      </div>
     </div>
   );
 }
