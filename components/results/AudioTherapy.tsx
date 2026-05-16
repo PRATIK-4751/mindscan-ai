@@ -201,7 +201,12 @@ export default function AudioTherapy({ riskLevel }: { riskLevel: string }) {
         </div>
       </div>
 
-      <div className="absolute inset-0 w-full h-full z-[-1] overflow-hidden opacity-[0.01] pointer-events-none">
+      {/* 
+        CRITICAL FIX FOR YOUTUBE AUTOPLAY/IFRAME BLOCKING:
+        Browsers block invisible iframes from playing media automatically.
+        We rely entirely on the user's explicit click on the Play button to trigger playback.
+      */}
+      <div className="absolute inset-0 w-full h-full z-[-1] overflow-hidden opacity-[0.01]">
         {isMounted && (() => {
           const Player = ReactPlayer as any;
           return (
@@ -221,7 +226,10 @@ export default function AudioTherapy({ riskLevel }: { riskLevel: string }) {
               height="100%"
               config={{
                 youtube: {
-                  playerVars: { autoplay: 1, playsinline: 1, origin: typeof window !== 'undefined' ? window.location.origin : '' }
+                  playerVars: { 
+                    playsinline: 1, 
+                    origin: typeof window !== 'undefined' ? window.location.origin : '' 
+                  }
                 }
               }}
             />
