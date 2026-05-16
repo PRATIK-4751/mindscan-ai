@@ -1,5 +1,8 @@
 import { NextResponse } from "next/server";
 
+export const runtime = "edge"; // Prevent Vercel 10s timeout by using the Edge runtime
+export const maxDuration = 25; // Hobby tier maximum for Edge
+
 type ChatMessage = {
   role: "system" | "user" | "assistant";
   content: string;
@@ -32,7 +35,7 @@ export async function POST(request: Request) {
 
   try {
     const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 30_000);
+    const timer = setTimeout(() => controller.abort(), 23_000); // Trigger abort before Vercel 25s limit
 
     const response = await fetch(apiUrl, {
       method: "POST",

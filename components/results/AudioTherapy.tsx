@@ -2,7 +2,6 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { Play, Pause, Volume2, SkipBack, SkipForward, AlertCircle } from "lucide-react";
 
-/* ── Playlist from env vars — set in .env / Vercel dashboard ── */
 const PLAYLIST = [
   { id: process.env.NEXT_PUBLIC_YT_TRACK_1 || "G8M8WJ10ITU", title: process.env.NEXT_PUBLIC_YT_TITLE_1 || "Deep Focus & Binaural Relaxation" },
   { id: process.env.NEXT_PUBLIC_YT_TRACK_2 || "NQL_Iqx-q2E",  title: process.env.NEXT_PUBLIC_YT_TITLE_2 || "Calming Ambient Soundscape" },
@@ -11,7 +10,6 @@ const PLAYLIST = [
 
 const ALBUM_ART = ["/assets/album1.jpg", "/assets/album2.jpg", "/assets/album3.jpg"];
 
-/* ── Load YouTube IFrame API once ── */
 function loadYTApi(): Promise<void> {
   return new Promise((resolve) => {
     if ((window as any).YT?.Player) { resolve(); return; }
@@ -43,14 +41,12 @@ export default function AudioTherapy({ riskLevel }: { riskLevel: string }) {
   const track    = PLAYLIST[idx];
   const albumArt = ALBUM_ART[idx % ALBUM_ART.length];
 
-  /* ── Initialise YT player ── */
   useEffect(() => {
     let cancelled = false;
 
     loadYTApi().then(() => {
       if (cancelled) return;
 
-      // Destroy old player if exists
       if (ytPlayer.current) {
         try { ytPlayer.current.destroy(); } catch {}
       }
@@ -97,7 +93,6 @@ export default function AudioTherapy({ riskLevel }: { riskLevel: string }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [idx]);
 
-  /* ── Play / pause sync ── */
   useEffect(() => {
     if (!ready || !ytPlayer.current) return;
     try {
@@ -109,7 +104,6 @@ export default function AudioTherapy({ riskLevel }: { riskLevel: string }) {
     } catch {}
   }, [playing, ready]);
 
-  /* ── Progress timer ── */
   useEffect(() => {
     if (timerRef.current) clearInterval(timerRef.current);
 
@@ -127,7 +121,6 @@ export default function AudioTherapy({ riskLevel }: { riskLevel: string }) {
     return () => { if (timerRef.current) clearInterval(timerRef.current); };
   }, [playing, ready, seeking]);
 
-  /* ── Transport ── */
   const skip = useCallback((dir: 1 | -1) => {
     const next = (idx + dir + PLAYLIST.length) % PLAYLIST.length;
     setIdx(next);
@@ -138,7 +131,6 @@ export default function AudioTherapy({ riskLevel }: { riskLevel: string }) {
     setPlaying(true);
   }, [idx]);
 
-  /* ── Seek ── */
   const pctFromEvent = (e: React.MouseEvent<HTMLDivElement>) => {
     if (!barRef.current) return 0;
     const r = barRef.current.getBoundingClientRect();
@@ -162,7 +154,6 @@ export default function AudioTherapy({ riskLevel }: { riskLevel: string }) {
     }
   };
 
-  /* ── Helpers ── */
   const fmt = (s: number) => {
     if (!s || isNaN(s)) return "0:00";
     return `${Math.floor(s / 60)}:${Math.floor(s % 60).toString().padStart(2, "0")}`;
@@ -174,7 +165,6 @@ export default function AudioTherapy({ riskLevel }: { riskLevel: string }) {
       onMouseUp={(e: any) => seeking && onSeekUp(e)}
       onMouseLeave={(e: any) => seeking && onSeekUp(e)}
     >
-      {/* ── Background layers ── */}
       <div className="absolute inset-0 bg-black z-[1]" />
       <div
         className="absolute inset-0 opacity-40 blur-xl saturate-150 transition-all duration-1000 z-[2]"
@@ -183,7 +173,6 @@ export default function AudioTherapy({ riskLevel }: { riskLevel: string }) {
       <div className="absolute inset-0 bg-black/70 z-[2]" />
       <div className="absolute inset-0 bg-[linear-gradient(transparent_50%,rgba(0,0,0,0.25)_50%)] bg-[length:100%_4px] pointer-events-none opacity-50 z-[3]" />
 
-      {/* ── UI ── */}
       <div className="relative z-[5] flex flex-col p-4 sm:p-6">
         <div className="flex items-center justify-between border-b border-white/10 pb-2 mb-4">
           <span className="font-mono text-[10px] uppercase tracking-[0.4em] text-[var(--amber-gold)]">
@@ -200,7 +189,6 @@ export default function AudioTherapy({ riskLevel }: { riskLevel: string }) {
         )}
 
         <div className="flex flex-col sm:flex-row items-center gap-6 sm:gap-10">
-          {/* Album art */}
           <div className="relative h-48 w-48 shrink-0 overflow-hidden border border-white/20 shadow-[2px_2px_0px_rgba(255,255,255,0.2)] bg-black p-1 sm:h-40 sm:w-40">
             <img
               src={albumArt}
@@ -218,7 +206,6 @@ export default function AudioTherapy({ riskLevel }: { riskLevel: string }) {
             )}
           </div>
 
-          {/* Controls + seek */}
           <div className="flex w-full flex-col justify-center">
             <div className="flex flex-col items-center sm:items-start w-full">
               <div className="flex items-center gap-6 mb-8">
@@ -257,7 +244,6 @@ export default function AudioTherapy({ riskLevel }: { riskLevel: string }) {
         </div>
       </div>
 
-      {/* ── YouTube iframe — hidden behind UI, controlled via IFrame API ── */}
       <div
         ref={containerRef}
         style={{ position: "absolute", top: 0, left: 0, width: 1, height: 1, overflow: "hidden", opacity: 0.01, pointerEvents: "none" }}

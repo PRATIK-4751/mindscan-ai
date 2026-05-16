@@ -163,7 +163,15 @@ export default function InsightChat() {
           messages: [...messages, userMessage].map((item) => ({ role: item.role, content: item.content })),
         }),
       });
-      const data = await response.json();
+
+      let data;
+      try {
+        data = await response.json();
+      } catch (e) {
+        // If Vercel timed out and returned an HTML 504 Gateway Timeout page
+        throw new Error("I'm experiencing connection issues right now. Please try again later. Take a deep breath.");
+      }
+
       const reply: ChatMessage = {
         id: window.crypto?.randomUUID?.() ?? `${Date.now()}-a`,
         role: "assistant",
