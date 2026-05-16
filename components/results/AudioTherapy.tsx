@@ -1,7 +1,10 @@
 "use client";
 import { useEffect, useState, useRef } from "react";
 import { Play, Pause, Volume2, SkipBack, SkipForward } from "lucide-react";
-import ReactPlayer from 'react-player';
+import dynamic from 'next/dynamic';
+
+// Next.js dynamic import to prevent hydration errors and TS type mismatches with react-player
+const ReactPlayer = dynamic(() => import('react-player'), { ssr: false });
 
 export default function AudioTherapy({ riskLevel }: { riskLevel: string }) {
   const [tracks, setTracks] = useState<{videoId: string, title: string}[]>([]);
@@ -9,7 +12,7 @@ export default function AudioTherapy({ riskLevel }: { riskLevel: string }) {
   const [isPlaying, setIsPlaying] = useState(false);
   const [progress, setProgress] = useState(0); 
   const [duration, setDuration] = useState(0);
-  const playerRef = useRef<ReactPlayer>(null);
+  const playerRef = useRef<any>(null);
   const progressRef = useRef<HTMLDivElement>(null);
   const [isSeeking, setIsSeeking] = useState(false);
 
@@ -60,10 +63,11 @@ export default function AudioTherapy({ riskLevel }: { riskLevel: string }) {
     if (percent < 0) percent = 0;
     if (percent > 1) percent = 1;
     setProgress(percent);
-    if (apply && playerRef.current) {
-      if (typeof playerRef.current.seekTo === 'function') {
-        playerRef.current.seekTo(percent, "fraction");
-      }
+    
+    // playerRef.current might be the dynamic wrapper or the actual player depending on react-player internals
+    // but typically getInternalPlayer() or seekTo() is directly exposed.
+    if (apply && playerRef.current && typeof playerRef.current.seekTo === 'function') {
+      playerRef.current.seekTo(percent, "fraction");
     }
   };
 
@@ -74,6 +78,7 @@ export default function AudioTherapy({ riskLevel }: { riskLevel: string }) {
   };
 
   const formatTime = (seconds: number) => {
+    if (!seconds || isNaN(seconds)) return "0:00";
     const mins = Math.floor(seconds / 60);
     const secs = Math.floor(seconds % 60);
     return `${mins}:${secs.toString().padStart(2, '0')}`;
@@ -186,7 +191,8 @@ export default function AudioTherapy({ riskLevel }: { riskLevel: string }) {
         </div>
       </div>
 
-      <div className="hidden">
+      {/* Do NOT use display: none (className="hidden") because browsers block invisible iframes from playing! */}
+      <div className="absolute w-0 h-0 overflow-hidden opacity-0 pointer-events-none -z-50">
         <ReactPlayer 
           ref={playerRef}
           url={`https://www.youtube.com/watch?v=${currentTrack.videoId}`}
@@ -194,8 +200,8 @@ export default function AudioTherapy({ riskLevel }: { riskLevel: string }) {
           controls={false}
           onProgress={handleProgress}
           onDuration={(d: number) => setDuration(d)}
-          width="0"
-          height="0"
+          width="1px"
+          height="1px"
         />
       </div>
     </div>
