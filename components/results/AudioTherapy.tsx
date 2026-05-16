@@ -104,17 +104,23 @@ export default function AudioTherapy({ riskLevel }: { riskLevel: string }) {
       onMouseUp={(e: any) => isSeeking && handleSeekMouseUp(e)}
       onMouseLeave={(e: any) => isSeeking && handleSeekMouseUp(e)}
     >
+      {/* Player gets z-0 so it's fully visible to the browser but covered by the UI */}
+      
+      {/* Solid background to completely hide the player */}
+      <div className="absolute inset-0 bg-black z-10" />
+
+      {/* Blur background */}
       <div 
-        className="absolute inset-0 opacity-40 blur-xl saturate-150 transition-all duration-1000 z-0"
+        className="absolute inset-0 opacity-40 blur-xl saturate-150 transition-all duration-1000 z-10"
         style={{ backgroundImage: `url(${thumbnailUrl})`, backgroundSize: 'cover', backgroundPosition: 'center' }}
       />
       
-      <div className="absolute inset-0 bg-black/70 z-0" />
+      <div className="absolute inset-0 bg-black/70 z-10" />
 
       {/* Retro scanlines effect */}
-      <div className="absolute inset-0 bg-[linear-gradient(transparent_50%,rgba(0,0,0,0.25)_50%)] bg-[length:100%_4px] pointer-events-none opacity-50 z-10"></div>
+      <div className="absolute inset-0 bg-[linear-gradient(transparent_50%,rgba(0,0,0,0.25)_50%)] bg-[length:100%_4px] pointer-events-none opacity-50 z-20"></div>
 
-      <div className="relative z-20 flex flex-col p-4 sm:p-6">
+      <div className="relative z-30 flex flex-col p-4 sm:p-6">
         <div className="flex items-center justify-between border-b border-white/10 pb-2 mb-4">
           <span className="font-mono text-[10px] uppercase tracking-[0.4em] text-[var(--amber-gold)]">
             AI.AUDIO.PLAYER.exe
@@ -205,8 +211,10 @@ export default function AudioTherapy({ riskLevel }: { riskLevel: string }) {
         CRITICAL FIX FOR YOUTUBE AUTOPLAY/IFRAME BLOCKING:
         Browsers block invisible iframes from playing media automatically.
         We rely entirely on the user's explicit click on the Play button to trigger playback.
+        We place the player at z-0 with full opacity so the browser thinks it's visible,
+        but we cover it with z-10 backgrounds above.
       */}
-      <div className="absolute inset-0 w-full h-full z-[-1] overflow-hidden opacity-[0.01]">
+      <div className="absolute inset-0 w-full h-full z-0 overflow-hidden pointer-events-none">
         {isMounted && (() => {
           const Player = ReactPlayer as any;
           return (
@@ -214,9 +222,17 @@ export default function AudioTherapy({ riskLevel }: { riskLevel: string }) {
               ref={playerRef}
               url={`https://www.youtube.com/watch?v=${currentTrack.videoId}`}
               playing={isPlaying}
+              volume={1}
+              muted={false}
               controls={false}
               onProgress={handleProgress}
               onDuration={(d: number) => setDuration(d)}
+              onReady={() => {
+                if (isPlaying && playerRef.current) {
+                  // Fallback to force play if ready event fires after state change
+                  playerRef.current.getInternalPlayer()?.playVideo?.();
+                }
+              }}
               onError={(e: any) => {
                 console.error("Player Error:", e);
                 setPlayerError("YouTube blocked embedding for this specific audio track. Please skip to the next track.");
@@ -228,6 +244,9 @@ export default function AudioTherapy({ riskLevel }: { riskLevel: string }) {
                 youtube: {
                   playerVars: { 
                     playsinline: 1, 
+                    autoplay: 0,
+                    controls: 0,
+                    disablekb: 1,
                     origin: typeof window !== 'undefined' ? window.location.origin : '' 
                   }
                 }
