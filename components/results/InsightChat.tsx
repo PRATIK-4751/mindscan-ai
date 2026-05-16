@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useRef } from "react";
+import { Mic, Volume2, Loader2 } from "lucide-react";
 
 type ChatMessage = {
   id: string;
@@ -129,6 +130,59 @@ export default function InsightChat() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
+  const [listening, setListening] = useState(false);
+  const [speaking, setSpeaking] = useState(false);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+
+  const playVoice = async (text: string) => {
+    try {
+      setSpeaking(true);
+      // Stop current audio if playing
+      if (audioRef.current) {
+        audioRef.current.pause();
+      }
+      
+      const res = await fetch("/api/tts", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text }),
+      });
+      
+      if (!res.ok) throw new Error("TTS failed");
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const audio = new Audio(url);
+      audioRef.current = audio;
+      
+      audio.onended = () => setSpeaking(false);
+      audio.onerror = () => setSpeaking(false);
+      audio.play();
+    } catch (e) {
+      console.error(e);
+      setSpeaking(false);
+    }
+  };
+
+  const startListening = () => {
+    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (!SpeechRecognition) {
+      alert("Voice input is not supported in this browser.");
+      return;
+    }
+    const recognition = new SpeechRecognition();
+    recognition.continuous = false;
+    recognition.interimResults = false;
+    
+    recognition.onstart = () => setListening(true);
+    recognition.onresult = (event: any) => {
+      const transcript = event.results[0][0].transcript;
+      setInput((prev) => prev + (prev ? " " : "") + transcript);
+    };
+    recognition.onerror = (e: any) => console.error(e);
+    recognition.onend = () => setListening(false);
+    
+    recognition.start();
+  };
 
   useEffect(() => {
     const stored = window.localStorage.getItem(STORAGE_KEY);
@@ -179,6 +233,11 @@ export default function InsightChat() {
         timestamp: Date.now() + 1,
       };
       setMessages((prev) => [...prev, reply]);
+      
+      // Auto-play the response using ElevenLabs
+      if (data?.content) {
+        playVoice(data.content);
+      }
     } catch (error) {
       const reply: ChatMessage = {
         id: window.crypto?.randomUUID?.() ?? `${Date.now()}-a`,
@@ -195,6 +254,10 @@ export default function InsightChat() {
   const handleClear = () => {
     setMessages([]);
     window.localStorage.removeItem(STORAGE_KEY);
+    if (audioRef.current) {
+      audioRef.current.pause();
+      setSpeaking(false);
+    }
   };
 
   return (
@@ -206,12 +269,19 @@ export default function InsightChat() {
             System Prompt: {SYSTEM_PROMPT}
           </p>
         </div>
-        <button
-          onClick={handleClear}
-          className="border border-[var(--cream)] px-4 py-2 text-[10px] uppercase tracking-[0.3em] text-[var(--cream)] hover:bg-[var(--cream)] hover:text-black transition-colors"
-        >
-          New Chat / Clear History
-        </button>
+        <div className="flex items-center gap-3">
+          {speaking && (
+            <div className="flex items-center gap-2 text-[10px] uppercase tracking-[0.2em] text-[var(--amber-gold)]">
+              <Volume2 className="animate-pulse" size={14} /> Speaking...
+            </div>
+          )}
+          <button
+            onClick={handleClear}
+            className="border border-[var(--cream)] px-4 py-2 text-[10px] uppercase tracking-[0.3em] text-[var(--cream)] hover:bg-[var(--cream)] hover:text-black transition-colors"
+          >
+            New Chat / Clear History
+          </button>
+        </div>
       </div>
       <div className="mt-6 space-y-4 border border-white/10 p-4">
         {ordered.length === 0 && (
@@ -233,14 +303,22 @@ export default function InsightChat() {
         ))}
       </div>
       <div className="mt-4 flex flex-col gap-3 sm:flex-row">
+        <button 
+          onClick={startListening} 
+          className={`flex items-center justify-center border border-white/10 px-4 py-3 transition-colors ${listening ? 'bg-red-500/20 text-red-500' : 'bg-[var(--bg-secondary)] text-[var(--cream)] hover:bg-white/10'}`}
+          title="Voice Input"
+        >
+          <Mic size={18} className={listening ? "animate-pulse" : ""} />
+        </button>
         <input
           value={input}
           onChange={(event) => setInput(event.target.value)}
-          placeholder="Type a question or how you feel..."
+          onKeyDown={(e) => e.key === "Enter" && handleSend()}
+          placeholder={listening ? "Listening..." : "Type a question or how you feel..."}
           className="w-full border border-white/10 bg-[var(--bg-secondary)] px-4 py-3 text-sm uppercase tracking-[0.2em] text-[var(--cream)] outline-none"
         />
-        <button onClick={handleSend} className="button-outline text-xs" disabled={loading}>
-          {loading ? "Sending..." : "Send"}
+        <button onClick={handleSend} className="button-outline text-xs min-w-[100px] flex items-center justify-center gap-2" disabled={loading}>
+          {loading ? <Loader2 className="animate-spin" size={14} /> : "Send"}
         </button>
       </div>
     </div>

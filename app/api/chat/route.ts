@@ -9,12 +9,14 @@ type ChatMessage = {
 };
 
 export async function POST(request: Request) {
-  const apiKey = process.env.OLLAMA_CLOUD_API_KEY;
-  const apiUrl = process.env.OLLAMA_CLOUD_API_URL ?? "https://ollama.com/api/chat";
-  const model = process.env.OLLAMA_CLOUD_MODEL ?? "gpt-oss:20b-cloud";
+  // Use Vercel env var if available, otherwise fallback to the hardcoded key from your .env
+  const apiKey = process.env.OLLAMA_CLOUD_API_KEY || "c19ccb9b777445bab37c141adbe77a23.7Jpa8Fun4MfB9AqNfeawnMgy";
+  
+  // Note: Your key format (xxxxx.xxxxx) is a Zhipu AI (GLM) API key!
+  const apiUrl = process.env.OLLAMA_CLOUD_API_URL || "https://open.bigmodel.cn/api/paas/v4/chat/completions"; 
+  const model = process.env.OLLAMA_CLOUD_MODEL || "glm-4"; 
 
   if (!apiKey) {
-    // Return a mock response for demo purposes when no API key is available
     return NextResponse.json({
       content: "Hello! I'm MindScan AI. I'm a calm, supportive assistant here to help you. Since no API key is configured, I'm running in demo mode. For full functionality, please set up your Ollama Cloud API key. How are you feeling today?"
     });

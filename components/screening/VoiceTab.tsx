@@ -1,7 +1,6 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useAudioRecorder } from "react-audio-voice-recorder";
 import WaveSurfer from "wavesurfer.js";
 import LoadingSpinner from "../shared/LoadingSpinner";
 import { analyzeVoice } from "../../lib/api";
@@ -20,13 +19,63 @@ interface VoiceTabProps {
 export default function VoiceTab({ onComplete }: VoiceTabProps) {
   const waveformRef = useRef<HTMLDivElement | null>(null);
   const wavesurfer = useRef<WaveSurfer | null>(null);
+  
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [voiceScore, setVoiceScore] = useState(0);
   const [emotion, setEmotion] = useState("Neutral");
-  const recorderControls = useAudioRecorder({ noiseSuppression: true, echoCancellation: true });
-  const { startRecording, stopRecording, recordingBlob, isRecording, recordingTime } = recorderControls;
+  
+  // Native MediaRecorder state
+  const mediaRecorder = useRef<MediaRecorder | null>(null);
+  const [isRecording, setIsRecording] = useState(false);
+  const [recordingTime, setRecordingTime] = useState(0);
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const chunksRef = useRef<Blob[]>([]);
+
+  const startRecording = async () => {
+    try {
+      setError(null);
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      mediaRecorder.current = new MediaRecorder(stream);
+      chunksRef.current = [];
+
+      mediaRecorder.current.ondataavailable = (e) => {
+        if (e.data.size > 0) chunksRef.current.push(e.data);
+      };
+
+      mediaRecorder.current.onstop = () => {
+        const blob = new Blob(chunksRef.current, { type: "audio/webm" });
+        handleRecordingComplete(blob);
+        stream.getTracks().forEach(track => track.stop()); // cleanup microphone
+      };
+
+      mediaRecorder.current.start();
+      setIsRecording(true);
+      setRecordingTime(0);
+      
+      timerRef.current = setInterval(() => {
+        setRecordingTime((prev) => {
+          if (prev >= 29) {
+            stopRecording();
+            return 30;
+          }
+          return prev + 1;
+        });
+      }, 1000);
+    } catch (err) {
+      console.error(err);
+      setError("Microphone access denied or not available. Please allow microphone permissions.");
+    }
+  };
+
+  const stopRecording = () => {
+    if (mediaRecorder.current && mediaRecorder.current.state === "recording") {
+      mediaRecorder.current.stop();
+    }
+    setIsRecording(false);
+    if (timerRef.current) clearInterval(timerRef.current);
+  };
 
   const handleRecordingComplete = useCallback(async (blob: Blob) => {
     const url = URL.createObjectURL(blob);
@@ -42,7 +91,7 @@ export default function VoiceTab({ onComplete }: VoiceTabProps) {
         voice_score: result.voice_score,
         detected_voice_emotion: result.detected_voice_emotion,
         audioUrl: url,
-        duration: Math.min(recordingTime, 30),
+        duration: Math.min(recordingTime || 1, 30),
       });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unable to analyze voice.");
@@ -50,16 +99,6 @@ export default function VoiceTab({ onComplete }: VoiceTabProps) {
       setLoading(false);
     }
   }, [onComplete, recordingTime]);
-
-  useEffect(() => {
-    if (!isRecording) return;
-    if (recordingTime >= 30) stopRecording();
-  }, [isRecording, recordingTime, stopRecording]);
-
-  useEffect(() => {
-    if (!recordingBlob) return;
-    handleRecordingComplete(recordingBlob);
-  }, [recordingBlob, handleRecordingComplete]);
 
   useEffect(() => {
     if (!audioUrl || !waveformRef.current) return;
