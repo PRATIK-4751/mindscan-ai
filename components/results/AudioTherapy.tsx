@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useState, useRef } from "react";
-import { Play, Pause, Volume2, SkipBack, SkipForward } from "lucide-react";
+import { Play, Pause, Volume2, SkipBack, SkipForward, AlertCircle } from "lucide-react";
 import ReactPlayer from 'react-player';
 
 export default function AudioTherapy({ riskLevel }: { riskLevel: string }) {
@@ -9,6 +9,7 @@ export default function AudioTherapy({ riskLevel }: { riskLevel: string }) {
   const [isPlaying, setIsPlaying] = useState(false);
   const [progress, setProgress] = useState(0); 
   const [duration, setDuration] = useState(0);
+  const [playerError, setPlayerError] = useState<string | null>(null);
   const playerRef = useRef<any>(null);
   const progressRef = useRef<HTMLDivElement>(null);
   const [isSeeking, setIsSeeking] = useState(false);
@@ -39,6 +40,7 @@ export default function AudioTherapy({ riskLevel }: { riskLevel: string }) {
     if (nextIndex < 0) nextIndex = tracks.length - 1;
     setCurrentIndex(nextIndex);
     setProgress(0);
+    setPlayerError(null);
     setIsPlaying(true);
   };
 
@@ -75,6 +77,7 @@ export default function AudioTherapy({ riskLevel }: { riskLevel: string }) {
     if (!isSeeking) {
       setProgress(state.played);
     }
+    setPlayerError(null);
   };
 
   const formatTime = (seconds: number) => {
@@ -119,14 +122,21 @@ export default function AudioTherapy({ riskLevel }: { riskLevel: string }) {
           <Volume2 size={16} className="text-white/40 hover:text-white transition-colors cursor-pointer" />
         </div>
 
+        {playerError && (
+          <div className="mb-4 flex items-center gap-2 rounded border border-red-500/50 bg-red-500/10 p-2 text-xs text-red-200">
+            <AlertCircle size={14} />
+            <span>{playerError}</span>
+          </div>
+        )}
+
         <div className="flex flex-col sm:flex-row items-center gap-6 sm:gap-10">
           <div className="relative h-48 w-48 shrink-0 overflow-hidden border border-white/20 shadow-[2px_2px_0px_rgba(255,255,255,0.2)] bg-black p-1 sm:h-40 sm:w-40 z-30">
             <img 
               src={thumbnailUrl} 
               alt="Cover Art" 
-              className={`relative z-10 h-full w-full object-cover transition-all duration-1000 ${isPlaying ? 'scale-105 brightness-110' : 'scale-100 grayscale-[30%]'}`}
+              className={`relative z-10 h-full w-full object-cover transition-all duration-1000 ${isPlaying && !playerError ? 'scale-105 brightness-110' : 'scale-100 grayscale-[30%]'}`}
             />
-            {isPlaying && (
+            {isPlaying && !playerError && (
               <div className="absolute bottom-2 right-2 flex items-end gap-1 h-4 z-40">
                 <span className="w-1 h-full bg-[var(--amber-gold)] animate-[bounce_0.8s_infinite]"></span>
                 <span className="w-1 h-3/4 bg-[var(--amber-gold)] animate-[bounce_1.1s_infinite]"></span>
@@ -138,7 +148,7 @@ export default function AudioTherapy({ riskLevel }: { riskLevel: string }) {
           <div className="flex w-full flex-col justify-center">
             <div className="flex flex-col items-center sm:items-start w-full">
               
-              <div className="flex items-center gap-6 mb-8">
+              <div className="flex items-center gap-6 mb-8 z-30 relative">
                 <button 
                   onClick={() => skipTrack(-1)}
                   className="text-white/60 transition-all hover:text-white active:scale-95"
@@ -162,7 +172,7 @@ export default function AudioTherapy({ riskLevel }: { riskLevel: string }) {
               </div>
               
               {/* Retro Seek Bar */}
-              <div className="flex items-center gap-3 w-full max-w-md">
+              <div className="flex items-center gap-3 w-full max-w-md z-30 relative">
                 <span className="font-mono text-[10px] text-white/60 w-8 text-right">
                   {formatTime(progress * duration)}
                 </span>
@@ -191,11 +201,6 @@ export default function AudioTherapy({ riskLevel }: { riskLevel: string }) {
         </div>
       </div>
 
-      {/* 
-        CRITICAL FIX FOR YOUTUBE AUTOPLAY/IFRAME BLOCKING:
-        Browsers block invisible (opacity:0, w:0, display:none, left:-9999px) iframes from playing media.
-        We must render the iframe at a real size, but hide it underneath the UI with z-index.
-      */}
       <div className="absolute inset-0 w-full h-full z-[-1] overflow-hidden opacity-[0.01] pointer-events-none">
         {isMounted && (() => {
           const Player = ReactPlayer as any;
@@ -207,11 +212,16 @@ export default function AudioTherapy({ riskLevel }: { riskLevel: string }) {
               controls={false}
               onProgress={handleProgress}
               onDuration={(d: number) => setDuration(d)}
+              onError={(e: any) => {
+                console.error("Player Error:", e);
+                setPlayerError("YouTube blocked embedding for this specific audio track. Please skip to the next track.");
+                setIsPlaying(false);
+              }}
               width="100%"
               height="100%"
               config={{
                 youtube: {
-                  playerVars: { autoplay: 1, playsinline: 1 }
+                  playerVars: { autoplay: 1, playsinline: 1, origin: typeof window !== 'undefined' ? window.location.origin : '' }
                 }
               }}
             />
