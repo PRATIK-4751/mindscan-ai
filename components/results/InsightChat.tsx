@@ -200,9 +200,9 @@ export default function InsightChat() {
         </div>
         <button
           onClick={handleClear}
-          className="border border-[var(--cream)] px-4 py-2 text-[10px] uppercase tracking-[0.3em] text-[var(--cream)]"
+          className="border border-[var(--cream)] px-4 py-2 text-[10px] uppercase tracking-[0.3em] text-[var(--cream)] hover:bg-[var(--cream)] hover:text-black transition-colors"
         >
-          Clear Log
+          New Chat / Clear History
         </button>
       </div>
       <div className="mt-6 space-y-4 border border-white/10 p-4">

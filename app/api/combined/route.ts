@@ -11,14 +11,26 @@ export async function POST(request: Request) {
     if (final_score > 0.7) risk_level = "High Risk";
     else if (final_score > 0.4) risk_level = "Medium Risk";
 
+    // SILENT DISTRESS DETECTION
+    // High internal distress (PHQ9 + Text) but calm/smiling external presentation (Face + Voice)
+    const internalDistress = (text_score + phq9_score) / 2;
+    const externalDistress = (face_score + voice_score) / 2;
+    
+    let silentDistress = false;
+    if (internalDistress > 0.65 && externalDistress < 0.35) {
+      silentDistress = true;
+      risk_level = "High Risk (Silent Distress)";
+    }
+
     return NextResponse.json({
       ...body,
       final_score,
       risk_level,
+      silentDistress,
       detected_face_emotion: face_score > 0.6 ? "Sad/Tense" : "Neutral",
       detected_voice_emotion: voice_score > 0.6 ? "Sad/Tense" : "Neutral",
     });
   } catch (err: any) {
-    return NextResponse.json({ final_score: 0.5, risk_level: "Medium Risk" });
+    return NextResponse.json({ final_score: 0.5, risk_level: "Medium Risk", silentDistress: false });
   }
 }

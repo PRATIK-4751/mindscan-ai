@@ -17,6 +17,7 @@ export interface AnalysisResult {
   detected_voice_emotion: string;
   phq9_total: number;
   phq9_severity: string;
+  silentDistress?: boolean;
 }
 
 export interface PHQ9Answer {
