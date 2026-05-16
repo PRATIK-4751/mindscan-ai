@@ -1,16 +1,16 @@
 "use client";
 import { useEffect, useState, useRef } from "react";
 import { Play, Pause, Volume2, SkipBack, SkipForward, AlertCircle } from "lucide-react";
-import ReactPlayer from 'react-player';
+import SimpleYouTubeAudio, { SimpleYouTubeAudioRef } from '../SimpleYouTubeAudio';
 
 export default function AudioTherapy({ riskLevel }: { riskLevel: string }) {
-  const [tracks, setTracks] = useState<{videoId: string, title: string}[]>([]);
+  const [tracks, setTracks] = useState<{url: string, title: string}[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
   const [progress, setProgress] = useState(0); 
   const [duration, setDuration] = useState(0);
   const [playerError, setPlayerError] = useState<string | null>(null);
-  const playerRef = useRef<any>(null);
+  const playerRef = useRef<SimpleYouTubeAudioRef>(null);
   const progressRef = useRef<HTMLDivElement>(null);
   const [isSeeking, setIsSeeking] = useState(false);
   const [isMounted, setIsMounted] = useState(false);
@@ -209,52 +209,23 @@ export default function AudioTherapy({ riskLevel }: { riskLevel: string }) {
 
       {/* 
         CRITICAL FIX FOR YOUTUBE AUTOPLAY/IFRAME BLOCKING:
-        Browsers block invisible iframes from playing media automatically.
-        We rely entirely on the user's explicit click on the Play button to trigger playback.
-        We place the player at z-0 with full opacity so the browser thinks it's visible,
-        but we cover it with z-10 backgrounds above.
+        We abstracted the ReactPlayer logic to the SimpleYouTubeAudio component,
+        which handles the rendering, z-index hacks, and auto-play fallbacks.
       */}
-      <div className="absolute inset-0 w-full h-full z-0 overflow-hidden pointer-events-none">
-        {isMounted && (() => {
-          const Player = ReactPlayer as any;
-          return (
-            <Player 
-              ref={playerRef}
-              url={`https://www.youtube.com/watch?v=${currentTrack.videoId}`}
-              playing={isPlaying}
-              volume={1}
-              muted={false}
-              controls={false}
-              onProgress={handleProgress}
-              onDuration={(d: number) => setDuration(d)}
-              onReady={() => {
-                if (isPlaying && playerRef.current) {
-                  // Fallback to force play if ready event fires after state change
-                  playerRef.current.getInternalPlayer()?.playVideo?.();
-                }
-              }}
-              onError={(e: any) => {
-                console.error("Player Error:", e);
-                setPlayerError("YouTube blocked embedding for this specific audio track. Please skip to the next track.");
-                setIsPlaying(false);
-              }}
-              width="100%"
-              height="100%"
-              config={{
-                youtube: {
-                  playerVars: { 
-                    playsinline: 1, 
-                    autoplay: 0,
-                    controls: 0,
-                    disablekb: 1,
-                    origin: typeof window !== 'undefined' ? window.location.origin : '' 
-                  }
-                }
-              }}
-            />
-          );
-        })()}
-      </div>
+      <SimpleYouTubeAudio
+        ref={playerRef}
+        url={currentTrack.url}
+        isPlaying={isPlaying}
+        volume={1}
+        onEnded={() => skipTrack(1)}
+        onProgress={handleProgress}
+        onDuration={(d: number) => setDuration(d)}
+        onError={(e: any) => {
+          console.error("Player Error:", e);
+          setPlayerError("YouTube blocked embedding for this specific audio track. Please skip to the next track.");
+          setIsPlaying(false);
+        }}
+      />
     </div>
   );
 }
