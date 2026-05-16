@@ -6,6 +6,7 @@ import ScoreBreakdown from "../../components/results/ScoreBreakdown";
 import LIMEChart from "../../components/results/LIMEChart";
 import EmotionSummary from "../../components/results/EmotionSummary";
 import Recommendations from "../../components/results/Recommendations";
+import AudioTherapy from "../../components/results/AudioTherapy";
 import PDFReport from "../../components/results/PDFReport";
 import InsightChat from "../../components/results/InsightChat";
 import SessionHistory from "../../components/results/SessionHistory";
@@ -80,6 +81,7 @@ export default function ResultsPage() {
           </h3>
           <div className="mt-6">
             <Recommendations riskLevel={result.risk_level} />
+            <AudioTherapy riskLevel={result.risk_level} />
           </div>
         </div>
         <div className="mt-10 grid gap-8 lg:grid-cols-[1.1fr_0.9fr]">
