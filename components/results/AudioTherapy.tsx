@@ -1,126 +1,190 @@
 "use client";
-import { useEffect, useState, useRef } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { Play, Pause, Volume2, SkipBack, SkipForward, AlertCircle } from "lucide-react";
-import SimpleYouTubeAudio, { SimpleYouTubeAudioRef } from '../SimpleYouTubeAudio';
+
+/* ── Playlist from env vars — set in .env / Vercel dashboard ── */
+const PLAYLIST = [
+  { id: process.env.NEXT_PUBLIC_YT_TRACK_1 || "G8M8WJ10ITU", title: process.env.NEXT_PUBLIC_YT_TITLE_1 || "Deep Focus & Binaural Relaxation" },
+  { id: process.env.NEXT_PUBLIC_YT_TRACK_2 || "NQL_Iqx-q2E",  title: process.env.NEXT_PUBLIC_YT_TITLE_2 || "Calming Ambient Soundscape" },
+  { id: process.env.NEXT_PUBLIC_YT_TRACK_3 || "MzgMBrtrFc4",  title: process.env.NEXT_PUBLIC_YT_TITLE_3 || "Peaceful Healing Meditation" },
+];
+
+const ALBUM_ART = ["/assets/album1.jpg", "/assets/album2.jpg", "/assets/album3.jpg"];
+
+/* ── Load YouTube IFrame API once ── */
+function loadYTApi(): Promise<void> {
+  return new Promise((resolve) => {
+    if ((window as any).YT?.Player) { resolve(); return; }
+    const existing = document.getElementById("yt-iframe-api");
+    if (!existing) {
+      const tag = document.createElement("script");
+      tag.id = "yt-iframe-api";
+      tag.src = "https://www.youtube.com/iframe_api";
+      document.head.appendChild(tag);
+    }
+    (window as any).onYouTubeIframeAPIReady = () => resolve();
+  });
+}
 
 export default function AudioTherapy({ riskLevel }: { riskLevel: string }) {
-  const [tracks, setTracks] = useState<{url: string, title: string}[]>([]);
-  const [currentIndex, setCurrentIndex] = useState(0);
-  const [isPlaying, setIsPlaying] = useState(false);
-  const [progress, setProgress] = useState(0); 
+  const [idx, setIdx]           = useState(0);
+  const [playing, setPlaying]   = useState(false);
+  const [progress, setProgress] = useState(0);
   const [duration, setDuration] = useState(0);
-  const [playerError, setPlayerError] = useState<string | null>(null);
-  const playerRef = useRef<SimpleYouTubeAudioRef>(null);
-  const progressRef = useRef<HTMLDivElement>(null);
-  const [isSeeking, setIsSeeking] = useState(false);
-  const [isMounted, setIsMounted] = useState(false);
+  const [error, setError]       = useState<string | null>(null);
+  const [seeking, setSeeking]   = useState(false);
+  const [ready, setReady]       = useState(false);
 
-  useEffect(() => {
-    setIsMounted(true);
-  }, []);
+  const ytPlayer    = useRef<any>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const barRef      = useRef<HTMLDivElement>(null);
+  const timerRef    = useRef<ReturnType<typeof setInterval> | null>(null);
 
+  const track    = PLAYLIST[idx];
+  const albumArt = ALBUM_ART[idx % ALBUM_ART.length];
+
+  /* ── Initialise YT player ── */
   useEffect(() => {
-    let query = "relaxing meditation music";
-    if (riskLevel === "High Risk" || riskLevel.includes("Silent Distress")) query = "binaural beats anxiety relief calm";
-    if (riskLevel === "Medium Risk") query = "stress relief soft piano music";
-    
-    fetch(`/api/youtube?q=${encodeURIComponent(query)}`)
-      .then(r => r.json())
-      .then(d => {
-        if (d.tracks) setTracks(d.tracks);
+    let cancelled = false;
+
+    loadYTApi().then(() => {
+      if (cancelled) return;
+
+      // Destroy old player if exists
+      if (ytPlayer.current) {
+        try { ytPlayer.current.destroy(); } catch {}
+      }
+
+      ytPlayer.current = new (window as any).YT.Player("yt-audio-frame", {
+        height: "1",
+        width: "1",
+        videoId: track.id,
+        playerVars: {
+          autoplay: 0,
+          controls: 0,
+          modestbranding: 1,
+          playsinline: 1,
+          rel: 0,
+          showinfo: 0,
+        },
+        events: {
+          onReady: () => {
+            if (cancelled) return;
+            setReady(true);
+            setDuration(ytPlayer.current.getDuration?.() || 0);
+            setError(null);
+          },
+          onStateChange: (e: any) => {
+            if (cancelled) return;
+            const YT = (window as any).YT.PlayerState;
+            if (e.data === YT.ENDED) skip(1);
+            if (e.data === YT.PLAYING) {
+              setDuration(ytPlayer.current.getDuration?.() || 0);
+            }
+          },
+          onError: () => {
+            if (cancelled) return;
+            setError("This track can't be played. Try skipping.");
+            setPlaying(false);
+          },
+        },
       });
-  }, [riskLevel]);
+    });
 
-  const togglePlay = () => setIsPlaying(!isPlaying);
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [idx]);
 
-  const skipTrack = (direction: 1 | -1) => {
-    if (tracks.length === 0) return;
-    let nextIndex = currentIndex + direction;
-    if (nextIndex >= tracks.length) nextIndex = 0;
-    if (nextIndex < 0) nextIndex = tracks.length - 1;
-    setCurrentIndex(nextIndex);
+  /* ── Play / pause sync ── */
+  useEffect(() => {
+    if (!ready || !ytPlayer.current) return;
+    try {
+      if (playing) {
+        ytPlayer.current.playVideo();
+      } else {
+        ytPlayer.current.pauseVideo();
+      }
+    } catch {}
+  }, [playing, ready]);
+
+  /* ── Progress timer ── */
+  useEffect(() => {
+    if (timerRef.current) clearInterval(timerRef.current);
+
+    if (playing && ready) {
+      timerRef.current = setInterval(() => {
+        if (!seeking && ytPlayer.current?.getCurrentTime) {
+          const cur = ytPlayer.current.getCurrentTime() || 0;
+          const dur = ytPlayer.current.getDuration() || 1;
+          setProgress(cur / dur);
+          setDuration(dur);
+        }
+      }, 500);
+    }
+
+    return () => { if (timerRef.current) clearInterval(timerRef.current); };
+  }, [playing, ready, seeking]);
+
+  /* ── Transport ── */
+  const skip = useCallback((dir: 1 | -1) => {
+    const next = (idx + dir + PLAYLIST.length) % PLAYLIST.length;
+    setIdx(next);
     setProgress(0);
-    setPlayerError(null);
-    setIsPlaying(true);
+    setDuration(0);
+    setError(null);
+    setReady(false);
+    setPlaying(true);
+  }, [idx]);
+
+  /* ── Seek ── */
+  const pctFromEvent = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (!barRef.current) return 0;
+    const r = barRef.current.getBoundingClientRect();
+    return Math.max(0, Math.min(1, (e.clientX - r.left) / r.width));
   };
 
-  const handleSeekMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
-    setIsSeeking(true);
-    updateSeek(e);
+  const onSeekDown = (e: React.MouseEvent<HTMLDivElement>) => {
+    setSeeking(true);
+    setProgress(pctFromEvent(e));
   };
-
-  const handleSeekMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
-    if (isSeeking) {
-      updateSeek(e);
+  const onSeekMove = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (seeking) setProgress(pctFromEvent(e));
+  };
+  const onSeekUp = (e: React.MouseEvent<HTMLDivElement>) => {
+    setSeeking(false);
+    const pct = pctFromEvent(e);
+    setProgress(pct);
+    if (ytPlayer.current?.seekTo) {
+      const dur = ytPlayer.current.getDuration() || 0;
+      ytPlayer.current.seekTo(pct * dur, true);
     }
   };
 
-  const handleSeekMouseUp = (e: React.MouseEvent<HTMLDivElement>) => {
-    setIsSeeking(false);
-    updateSeek(e, true);
+  /* ── Helpers ── */
+  const fmt = (s: number) => {
+    if (!s || isNaN(s)) return "0:00";
+    return `${Math.floor(s / 60)}:${Math.floor(s % 60).toString().padStart(2, "0")}`;
   };
-
-  const updateSeek = (e: React.MouseEvent<HTMLDivElement>, apply: boolean = false) => {
-    if (!progressRef.current) return;
-    const rect = progressRef.current.getBoundingClientRect();
-    let percent = (e.clientX - rect.left) / rect.width;
-    if (percent < 0) percent = 0;
-    if (percent > 1) percent = 1;
-    setProgress(percent);
-    
-    if (apply && playerRef.current && typeof playerRef.current.seekTo === 'function') {
-      playerRef.current.seekTo(percent, "fraction");
-    }
-  };
-
-  const handleProgress = (state: any) => {
-    if (!isSeeking) {
-      setProgress(state.played);
-    }
-    setPlayerError(null);
-  };
-
-  const formatTime = (seconds: number) => {
-    if (!seconds || isNaN(seconds)) return "0:00";
-    const mins = Math.floor(seconds / 60);
-    const secs = Math.floor(seconds % 60);
-    return `${mins}:${secs.toString().padStart(2, '0')}`;
-  };
-
-  if (tracks.length === 0) return null;
-  const currentTrack = tracks[currentIndex];
-  
-  // Custom user assets
-  const customImages = [
-    "/assets/album1.jpg", 
-    "/assets/album2.jpg", 
-    "/assets/album3.jpg"
-  ];
-  const thumbnailUrl = customImages[currentIndex % customImages.length];
 
   return (
-    <div 
+    <div
       className="relative mt-8 overflow-hidden border-2 border-white/20 bg-black shadow-[4px_4px_0px_rgba(255,255,255,0.1)] transition-all duration-500"
-      onMouseUp={(e: any) => isSeeking && handleSeekMouseUp(e)}
-      onMouseLeave={(e: any) => isSeeking && handleSeekMouseUp(e)}
+      onMouseUp={(e: any) => seeking && onSeekUp(e)}
+      onMouseLeave={(e: any) => seeking && onSeekUp(e)}
     >
-      {/* Player gets z-0 so it's fully visible to the browser but covered by the UI */}
-      
-      {/* Solid background to completely hide the player */}
-      <div className="absolute inset-0 bg-black z-10" />
-
-      {/* Blur background */}
-      <div 
-        className="absolute inset-0 opacity-40 blur-xl saturate-150 transition-all duration-1000 z-10"
-        style={{ backgroundImage: `url(${thumbnailUrl})`, backgroundSize: 'cover', backgroundPosition: 'center' }}
+      {/* ── Background layers ── */}
+      <div className="absolute inset-0 bg-black z-[1]" />
+      <div
+        className="absolute inset-0 opacity-40 blur-xl saturate-150 transition-all duration-1000 z-[2]"
+        style={{ backgroundImage: `url(${albumArt})`, backgroundSize: "cover", backgroundPosition: "center" }}
       />
-      
-      <div className="absolute inset-0 bg-black/70 z-10" />
+      <div className="absolute inset-0 bg-black/70 z-[2]" />
+      <div className="absolute inset-0 bg-[linear-gradient(transparent_50%,rgba(0,0,0,0.25)_50%)] bg-[length:100%_4px] pointer-events-none opacity-50 z-[3]" />
 
-      {/* Retro scanlines effect */}
-      <div className="absolute inset-0 bg-[linear-gradient(transparent_50%,rgba(0,0,0,0.25)_50%)] bg-[length:100%_4px] pointer-events-none opacity-50 z-20"></div>
-
-      <div className="relative z-30 flex flex-col p-4 sm:p-6">
+      {/* ── UI ── */}
+      <div className="relative z-[5] flex flex-col p-4 sm:p-6">
         <div className="flex items-center justify-between border-b border-white/10 pb-2 mb-4">
           <span className="font-mono text-[10px] uppercase tracking-[0.4em] text-[var(--amber-gold)]">
             AI.AUDIO.PLAYER.exe
@@ -128,104 +192,78 @@ export default function AudioTherapy({ riskLevel }: { riskLevel: string }) {
           <Volume2 size={16} className="text-white/40 hover:text-white transition-colors cursor-pointer" />
         </div>
 
-        {playerError && (
+        {error && (
           <div className="mb-4 flex items-center gap-2 rounded border border-red-500/50 bg-red-500/10 p-2 text-xs text-red-200">
             <AlertCircle size={14} />
-            <span>{playerError}</span>
+            <span>{error}</span>
           </div>
         )}
 
         <div className="flex flex-col sm:flex-row items-center gap-6 sm:gap-10">
-          <div className="relative h-48 w-48 shrink-0 overflow-hidden border border-white/20 shadow-[2px_2px_0px_rgba(255,255,255,0.2)] bg-black p-1 sm:h-40 sm:w-40 z-30">
-            <img 
-              src={thumbnailUrl} 
-              alt="Cover Art" 
-              className={`relative z-10 h-full w-full object-cover transition-all duration-1000 ${isPlaying && !playerError ? 'scale-105 brightness-110' : 'scale-100 grayscale-[30%]'}`}
+          {/* Album art */}
+          <div className="relative h-48 w-48 shrink-0 overflow-hidden border border-white/20 shadow-[2px_2px_0px_rgba(255,255,255,0.2)] bg-black p-1 sm:h-40 sm:w-40">
+            <img
+              src={albumArt}
+              alt="Cover Art"
+              className={`h-full w-full object-cover transition-all duration-1000 ${
+                playing && !error ? "scale-105 brightness-110" : "scale-100 grayscale-[30%]"
+              }`}
             />
-            {isPlaying && !playerError && (
-              <div className="absolute bottom-2 right-2 flex items-end gap-1 h-4 z-40">
-                <span className="w-1 h-full bg-[var(--amber-gold)] animate-[bounce_0.8s_infinite]"></span>
-                <span className="w-1 h-3/4 bg-[var(--amber-gold)] animate-[bounce_1.1s_infinite]"></span>
-                <span className="w-1 h-full bg-[var(--amber-gold)] animate-[bounce_0.9s_infinite]"></span>
+            {playing && !error && (
+              <div className="absolute bottom-2 right-2 flex items-end gap-1 h-4 z-10">
+                <span className="w-1 h-full bg-[var(--amber-gold)] animate-[bounce_0.8s_infinite]" />
+                <span className="w-1 h-3/4 bg-[var(--amber-gold)] animate-[bounce_1.1s_infinite]" />
+                <span className="w-1 h-full bg-[var(--amber-gold)] animate-[bounce_0.9s_infinite]" />
               </div>
             )}
           </div>
 
+          {/* Controls + seek */}
           <div className="flex w-full flex-col justify-center">
             <div className="flex flex-col items-center sm:items-start w-full">
-              
-              <div className="flex items-center gap-6 mb-8 z-30 relative">
-                <button 
-                  onClick={() => skipTrack(-1)}
-                  className="text-white/60 transition-all hover:text-white active:scale-95"
-                >
+              <div className="flex items-center gap-6 mb-8">
+                <button onClick={() => skip(-1)} className="text-white/60 transition-all hover:text-white active:scale-95">
                   <SkipBack size={24} fill="currentColor" />
                 </button>
-                
-                <button 
-                  onClick={togglePlay}
+                <button
+                  onClick={() => setPlaying((p) => !p)}
                   className="flex h-16 w-16 items-center justify-center border-2 border-white bg-black/50 text-white transition-all hover:bg-white hover:text-black active:translate-y-1 shadow-[2px_2px_0px_rgba(255,255,255,0.5)]"
                 >
-                  {isPlaying ? <Pause size={28} fill="currentColor" /> : <Play size={28} fill="currentColor" className="ml-1" />}
+                  {playing ? <Pause size={28} fill="currentColor" /> : <Play size={28} fill="currentColor" className="ml-1" />}
                 </button>
-
-                <button 
-                  onClick={() => skipTrack(1)}
-                  className="text-white/60 transition-all hover:text-white active:scale-95"
-                >
+                <button onClick={() => skip(1)} className="text-white/60 transition-all hover:text-white active:scale-95">
                   <SkipForward size={24} fill="currentColor" />
                 </button>
               </div>
-              
-              {/* Retro Seek Bar */}
-              <div className="flex items-center gap-3 w-full max-w-md z-30 relative">
-                <span className="font-mono text-[10px] text-white/60 w-8 text-right">
-                  {formatTime(progress * duration)}
-                </span>
-                <div 
-                  ref={progressRef}
-                  onMouseDown={handleSeekMouseDown}
-                  onMouseMove={handleSeekMouseMove}
+
+              <div className="flex items-center gap-3 w-full max-w-md">
+                <span className="font-mono text-[10px] text-white/60 w-8 text-right">{fmt(progress * duration)}</span>
+                <div
+                  ref={barRef}
+                  onMouseDown={onSeekDown}
+                  onMouseMove={onSeekMove}
                   className="relative h-4 w-full border border-white/20 bg-black cursor-pointer group"
                 >
-                  <div 
+                  <div
                     className="absolute left-0 top-0 h-full bg-[var(--amber-gold)] transition-all duration-75 group-hover:bg-[var(--cream)]"
                     style={{ width: `${progress * 100}%` }}
                   />
-                  {/* Tape play head indicator */}
-                  <div 
-                    className="absolute top-[-2px] bottom-[-2px] w-1 bg-white"
-                    style={{ left: `calc(${progress * 100}% - 2px)` }}
-                  />
+                  <div className="absolute top-[-2px] bottom-[-2px] w-1 bg-white" style={{ left: `calc(${progress * 100}% - 2px)` }} />
                 </div>
-                <span className="font-mono text-[10px] text-white/60 w-8">
-                  {formatTime(duration)}
-                </span>
+                <span className="font-mono text-[10px] text-white/60 w-8">{fmt(duration)}</span>
               </div>
             </div>
           </div>
         </div>
       </div>
 
-      {/* 
-        CRITICAL FIX FOR YOUTUBE AUTOPLAY/IFRAME BLOCKING:
-        We abstracted the ReactPlayer logic to the SimpleYouTubeAudio component,
-        which handles the rendering, z-index hacks, and auto-play fallbacks.
-      */}
-      <SimpleYouTubeAudio
-        ref={playerRef}
-        url={currentTrack.url}
-        isPlaying={isPlaying}
-        volume={1}
-        onEnded={() => skipTrack(1)}
-        onProgress={handleProgress}
-        onDuration={(d: number) => setDuration(d)}
-        onError={(e: any) => {
-          console.error("Player Error:", e);
-          setPlayerError("YouTube blocked embedding for this specific audio track. Please skip to the next track.");
-          setIsPlaying(false);
-        }}
-      />
+      {/* ── YouTube iframe — hidden behind UI, controlled via IFrame API ── */}
+      <div
+        ref={containerRef}
+        style={{ position: "absolute", top: 0, left: 0, width: 1, height: 1, overflow: "hidden", opacity: 0.01, pointerEvents: "none" }}
+      >
+        <div id="yt-audio-frame" />
+      </div>
     </div>
   );
 }
