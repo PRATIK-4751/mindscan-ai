@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useState, useRef } from "react";
 import { Play, Pause, Volume2 } from "lucide-react";
-import ReactPlayer from 'react-player/youtube';
+import ReactPlayer from 'react-player';
 
 export default function AudioTherapy({ riskLevel }: { riskLevel: string }) {
   const [tracks, setTracks] = useState<{videoId: string, title: string}[]>([]);
