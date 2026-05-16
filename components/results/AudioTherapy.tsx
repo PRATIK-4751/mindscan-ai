@@ -1,10 +1,7 @@
 "use client";
 import { useEffect, useState, useRef } from "react";
 import { Play, Pause, Volume2, SkipBack, SkipForward } from "lucide-react";
-import dynamic from 'next/dynamic';
-
-// Next.js dynamic import to prevent hydration errors and TS type mismatches with react-player
-const ReactPlayer = dynamic(() => import('react-player'), { ssr: false });
+import ReactPlayer from 'react-player';
 
 export default function AudioTherapy({ riskLevel }: { riskLevel: string }) {
   const [tracks, setTracks] = useState<{videoId: string, title: string}[]>([]);
@@ -15,6 +12,11 @@ export default function AudioTherapy({ riskLevel }: { riskLevel: string }) {
   const playerRef = useRef<any>(null);
   const progressRef = useRef<HTMLDivElement>(null);
   const [isSeeking, setIsSeeking] = useState(false);
+  const [isMounted, setIsMounted] = useState(false);
+
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
 
   useEffect(() => {
     let query = "relaxing meditation music";
@@ -193,16 +195,21 @@ export default function AudioTherapy({ riskLevel }: { riskLevel: string }) {
 
       {/* Do NOT use display: none (className="hidden") because browsers block invisible iframes from playing! */}
       <div className="absolute w-0 h-0 overflow-hidden opacity-0 pointer-events-none -z-50">
-        <ReactPlayer 
-          ref={playerRef}
-          url={`https://www.youtube.com/watch?v=${currentTrack.videoId}`}
-          playing={isPlaying}
-          controls={false}
-          onProgress={handleProgress}
-          onDuration={(d: number) => setDuration(d)}
-          width="1px"
-          height="1px"
-        />
+        {isMounted && (() => {
+          const Player = ReactPlayer as any;
+          return (
+            <Player 
+              ref={playerRef}
+              url={`https://www.youtube.com/watch?v=${currentTrack.videoId}`}
+              playing={isPlaying}
+              controls={false}
+              onProgress={handleProgress}
+              onDuration={(d: number) => setDuration(d)}
+              width="1px"
+              height="1px"
+            />
+          );
+        })()}
       </div>
     </div>
   );
