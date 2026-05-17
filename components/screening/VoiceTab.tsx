@@ -10,6 +10,7 @@ export interface VoiceTabResult {
   detected_voice_emotion: string;
   audioUrl: string;
   duration: number;
+  transcript?: string;
 }
 
 interface VoiceTabProps {
@@ -23,6 +24,8 @@ export default function VoiceTab({ onComplete }: VoiceTabProps) {
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [transcript, setTranscript] = useState("");
+  const recognitionRef = useRef<any>(null);
   const [voiceScore, setVoiceScore] = useState(0);
   const [emotion, setEmotion] = useState("Neutral");
   
@@ -36,9 +39,27 @@ export default function VoiceTab({ onComplete }: VoiceTabProps) {
   const startRecording = async () => {
     try {
       setError(null);
+      setTranscript("");
+      
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       mediaRecorder.current = new MediaRecorder(stream);
       chunksRef.current = [];
+
+      // Start Speech Recognition
+      const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+      if (SpeechRecognition) {
+        recognitionRef.current = new SpeechRecognition();
+        recognitionRef.current.continuous = true;
+        recognitionRef.current.interimResults = true;
+        recognitionRef.current.onresult = (event: any) => {
+          let currentTranscript = "";
+          for (let i = 0; i < event.results.length; i++) {
+            currentTranscript += event.results[i][0].transcript;
+          }
+          setTranscript(currentTranscript);
+        };
+        recognitionRef.current.start();
+      }
 
       mediaRecorder.current.ondataavailable = (e) => {
         if (e.data.size > 0) chunksRef.current.push(e.data);
@@ -73,6 +94,9 @@ export default function VoiceTab({ onComplete }: VoiceTabProps) {
     if (mediaRecorder.current && mediaRecorder.current.state === "recording") {
       mediaRecorder.current.stop();
     }
+    if (recognitionRef.current) {
+      recognitionRef.current.stop();
+    }
     setIsRecording(false);
     if (timerRef.current) clearInterval(timerRef.current);
   };
@@ -84,7 +108,8 @@ export default function VoiceTab({ onComplete }: VoiceTabProps) {
     setError(null);
     try {
       const file = new File([blob], "voice.webm", { type: blob.type || "audio/webm" });
-      const result = await analyzeVoice(file);
+      // Pass the transcribed text along with the audio file
+      const result = await analyzeVoice(file, transcript);
       setVoiceScore(result.voice_score);
       setEmotion(result.detected_voice_emotion);
       onComplete({
@@ -92,6 +117,7 @@ export default function VoiceTab({ onComplete }: VoiceTabProps) {
         detected_voice_emotion: result.detected_voice_emotion,
         audioUrl: url,
         duration: Math.min(recordingTime || 1, 30),
+        transcript: transcript
       });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unable to analyze voice.");
@@ -172,6 +198,12 @@ export default function VoiceTab({ onComplete }: VoiceTabProps) {
           <div className="mt-6 text-xs uppercase tracking-[0.3em] text-[var(--text-muted)]">
             Detected: {emotion}
           </div>
+          {transcript && (
+            <div className="mt-6 border-t border-white/10 pt-4">
+              <h5 className="font-mono text-[10px] uppercase tracking-[0.2em] text-[var(--cream)] mb-2">Transcript</h5>
+              <p className="font-body text-xs text-[var(--text-muted)]">{transcript}</p>
+            </div>
+          )}
         </div>
       </div>
       <div className="card-shell p-6">

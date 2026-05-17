@@ -38,11 +38,12 @@ export async function analyzeFace(image: File) {
   }
 }
 
-export async function analyzeVoice(audio: File) {
+export async function analyzeVoice(audio: File, transcript?: string) {
   try {
     const formData = new FormData();
     formData.append("audio", audio);
-    const { data } = await api.post<{ voice_score: number; detected_voice_emotion: string }>("/voice", formData);
+    if (transcript) formData.append("transcript", transcript);
+    const { data } = await api.post<{ voice_score: number; detected_voice_emotion: string, transcript?: string }>("/voice", formData);
     return data;
   } catch (error) {
     throw normalizeError(error);

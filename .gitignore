@@ -5,3 +5,7 @@ dist
 npm-debug.log*
 yarn-error.log*
 .DS_Store
+*.tsbuildinfo
+
+.vercel
+.env*.local

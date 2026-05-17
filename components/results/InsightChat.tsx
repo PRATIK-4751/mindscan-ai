@@ -222,14 +222,17 @@ export default function InsightChat() {
       try {
         data = await response.json();
       } catch (e) {
-        // If Vercel timed out and returned an HTML 504 Gateway Timeout page
-        throw new Error("I'm experiencing connection issues right now. Please try again later. Take a deep breath.");
+        throw new Error("The server returned an invalid response. This often happens during a timeout.");
+      }
+
+      if (!response.ok) {
+        throw new Error(data?.error || data?.details || `Error ${response.status}: Failed to get a response from the AI.`);
       }
 
       const reply: ChatMessage = {
         id: window.crypto?.randomUUID?.() ?? `${Date.now()}-a`,
         role: "assistant",
-        content: data?.content ?? "No response.",
+        content: data?.content ?? "No response was generated. Please try again.",
         timestamp: Date.now() + 1,
       };
       setMessages((prev) => [...prev, reply]);

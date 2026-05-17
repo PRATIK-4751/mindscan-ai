@@ -9,12 +9,11 @@ type ChatMessage = {
 };
 
 export async function POST(request: Request) {
-  // Use Vercel env var if available, otherwise fallback to the hardcoded key from your .env
-  const apiKey = process.env.OLLAMA_CLOUD_API_KEY || "c19ccb9b777445bab37c141adbe77a23.7Jpa8Fun4MfB9AqNfeawnMgy";
+  // Use Vercel env var if available
+  const apiKey = process.env.OLLAMA_CLOUD_API_KEY;
   
-  // Note: Your key format (xxxxx.xxxxx) is a Zhipu AI (GLM) API key!
-  const apiUrl = process.env.OLLAMA_CLOUD_API_URL || "https://open.bigmodel.cn/api/paas/v4/chat/completions"; 
-  const model = process.env.OLLAMA_CLOUD_MODEL || "glm-4"; 
+  const apiUrl = process.env.OLLAMA_CLOUD_API_URL || "https://ollama.com/api/chat"; 
+  const model = process.env.OLLAMA_CLOUD_MODEL || "gpt-oss:20b-cloud"; 
 
   if (!apiKey) {
     return NextResponse.json({
@@ -52,21 +51,35 @@ export async function POST(request: Request) {
 
     if (!response.ok) {
       const text = await response.text();
-      return NextResponse.json({ error: text || "Ollama request failed." }, { status: 500 });
+      console.error("LLM API Error:", text);
+      return NextResponse.json({ 
+        error: `API Request Failed: ${response.status} ${response.statusText}`,
+        details: text 
+      }, { status: response.status });
     }
 
     const data = await response.json();
     const content =
       data?.message?.content ??
       data?.choices?.[0]?.message?.content ??
-      data?.response ??
-      "No response.";
+      data?.response;
+
+    if (!content) {
+      console.error("Unexpected API Response Format:", data);
+      return NextResponse.json({ 
+        error: "Unexpected response format from AI provider.",
+        details: JSON.stringify(data)
+      }, { status: 500 });
+    }
 
     return NextResponse.json({ content });
-  } catch (error) {
+  } catch (error: any) {
+    console.error("Chat API Route Error:", error);
     // Fallback response if API call fails
     return NextResponse.json({
-      content: "I'm experiencing connection issues right now. Please try again later. In the meantime, take a deep breath and remember that you're not alone. How are you feeling?"
+      error: "Connection failed",
+      content: "I'm experiencing connection issues right now. This usually happens if the AI backend is unreachable or timed out. Please try again later.",
+      details: error.message
     }, { status: 503 });
   }
 }
