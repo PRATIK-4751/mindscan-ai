@@ -14,8 +14,6 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "@tensorflow/tfjs": "^4.22.0",
-    "@tensorflow/tfjs-converter": "^4.22.0",
     "@tsparticles/react": "^3.0.0",
     "axios": "^1.7.9",
     "face-api.js": "^0.22.2",

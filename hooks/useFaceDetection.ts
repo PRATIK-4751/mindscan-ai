@@ -5,16 +5,6 @@ import * as faceapi from "face-api.js";
 
 const MODEL_URL = "/models";
 
-const EMOTION_MAP: Record<string, string> = {
-  neutral: "Neutral",
-  happy: "Happy",
-  sad: "Sad",
-  angry: "Angry",
-  fearful: "Fear",
-  disgusted: "Disgust",
-  surprised: "Surprise",
-};
-
 export interface FaceDetectionResult {
   emotions: Record<string, number>;
   dominant_emotion: string;
@@ -27,12 +17,10 @@ interface UseFaceDetectionOptions {
 }
 
 export function useFaceDetection(options?: UseFaceDetectionOptions) {
-  const minConfidence = options?.minConfidence ?? 0.5;
   const [modelsLoaded, setModelsLoaded] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const optionsRef = useRef<faceapi.TinyFaceDetectorOptions | null>(null);
-  const loadingRef = useRef(true);
+  const optionsRef = useRef<any>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -47,13 +35,12 @@ export function useFaceDetection(options?: UseFaceDetectionOptions) {
         if (!cancelled) {
           setModelsLoaded(true);
           setLoading(false);
-          loadingRef.current = false;
         }
       } catch (err) {
+        console.error("[FaceDetection] Load error:", err);
         if (!cancelled) {
           setError("Failed to load face detection models.");
           setLoading(false);
-          loadingRef.current = false;
         }
       }
     }
@@ -64,48 +51,48 @@ export function useFaceDetection(options?: UseFaceDetectionOptions) {
   const detect = useCallback(async (
     input: HTMLVideoElement | HTMLImageElement | HTMLCanvasElement
   ): Promise<FaceDetectionResult> => {
-    if (!optionsRef.current) {
-      return {
-        emotions: { Neutral: 1.0 },
-        dominant_emotion: "Neutral",
-        confidence: 0,
-        face_detected: false,
-      };
-    }
-
-    const detection = await faceapi
-      .detectSingleFace(input, optionsRef.current)
-      .withFaceExpressions();
-
-    if (!detection) {
-      return {
-        emotions: { Neutral: 1.0 },
-        dominant_emotion: "Neutral",
-        confidence: 0,
-        face_detected: false,
-      };
-    }
-
-    const rawExpressions = detection.expressions;
-    const emotions: Record<string, number> = {};
-    let bestName = "Neutral";
-    let bestScore = 0;
-
-    for (const [key, value] of Object.entries(rawExpressions)) {
-      const mapped = EMOTION_MAP[key] || key;
-      emotions[mapped] = Math.round(value * 100) / 100;
-      if (value > bestScore) {
-        bestScore = value;
-        bestName = mapped;
-      }
-    }
-
-    return {
-      emotions,
-      dominant_emotion: bestName,
-      confidence: Math.round(bestScore * 100) / 100,
-      face_detected: true,
+    const empty: FaceDetectionResult = {
+      emotions: { Neutral: 1.0 },
+      dominant_emotion: "Neutral",
+      confidence: 0,
+      face_detected: false,
     };
+
+    if (!optionsRef.current) return empty;
+
+    try {
+      const detection = await faceapi
+        .detectSingleFace(input, optionsRef.current)
+        .withFaceExpressions();
+
+      if (!detection) return empty;
+
+      const rawExpressions = detection.expressions;
+      const emotions: Record<string, number> = {};
+      let bestName = "Neutral";
+      let bestScore = 0;
+
+      for (const [key, value] of Object.entries(rawExpressions)) {
+        emotions[key] = Math.round(value * 100) / 100;
+        if (value > bestScore) {
+          bestScore = value;
+          bestName = key;
+        }
+      }
+
+      // Capitalize first letter
+      bestName = bestName.charAt(0).toUpperCase() + bestName.slice(1);
+
+      return {
+        emotions,
+        dominant_emotion: bestName,
+        confidence: Math.round(bestScore * 100) / 100,
+        face_detected: true,
+      };
+    } catch (err) {
+      console.error("[FaceDetection] Detection error:", err);
+      return empty;
+    }
   }, []);
 
   return { modelsLoaded, loading, error, detect };
