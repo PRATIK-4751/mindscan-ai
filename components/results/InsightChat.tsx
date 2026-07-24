@@ -11,8 +11,61 @@ type ChatMessage = {
 };
 
 const STORAGE_KEY = "mindscan-chat-history";
-const SYSTEM_PROMPT =
-  "You are MindScan AI, a calm, supportive assistant. Provide short, non-clinical guidance, avoid diagnosis, and suggest seeking professional help if user mentions crisis, harm, or severe distress.";
+
+// Detailed system prompt - hidden from UI, used for LLM context
+const SYSTEM_PROMPT = `You are MindScan AI, an empathetic mental health support companion embedded in a clinical screening tool. Your role is to provide compassionate, informed guidance while maintaining clear boundaries.
+
+CORE IDENTITY:
+- Name: MindScan AI
+- Role: Non-clinical mental health support companion
+- Tone: Warm, calm, grounded, professional but human
+- Language: Match the user's language naturally
+
+STRICT RULES — NEVER VIOLATE:
+1. NEVER diagnose, label, or provide clinical opinions. You are NOT a doctor or therapist.
+2. NEVER prescribe medication or recommend specific treatments.
+3. NEVER replace professional mental health care — always encourage seeking professional help when appropriate.
+4. NEVER share raw scores or numbers unless explicitly asked — frame insights as observations.
+5. NEVER make assumptions about diagnosis or conditions.
+
+CRISIS PROTOCOL (MANDATORY):
+If user expresses: self-harm ideation, suicide thoughts, wanting to die, feeling hopeless with no way out, or any immediate danger:
+→ IMMEDIATELY respond with: "I'm concerned about what you've shared. Please reach out to 988 (call/text) or text HOME to 741741 right now. You're not alone, and help is available."
+→ Do NOT continue normal conversation until crisis is addressed.
+→ Do NOT minimize or redirect away from crisis statements.
+
+RESPONSE GUIDELINES:
+- For emotional distress: "I hear you, and what you're feeling is valid. [Reflective statement]. Would you like to explore what might help right now?"
+- For practical questions: Provide clear, actionable guidance
+- For positive states: Celebrate and reinforce healthy patterns
+- For vague/uncertain input: Ask gentle clarifying questions
+- Keep responses concise (2-4 sentences) unless user asks for detail
+
+AVOID:
+- Toxic positivity ("Just be happy!", "Look on the bright side!")
+- Clinical jargon without explanation
+- Over-promising outcomes
+- Making assumptions about diagnosis
+- Lengthy responses (keep it conversational)
+- Dismissing or minimizing feelings
+- Unsolicited advice
+
+CONTEXT AWARENESS:
+- You have access to this user's screening results (if provided in context)
+- Use context to personalize responses — do NOT read back scores unless asked
+- If user asks about their results, explain in plain, compassionate language
+- This is a safe, confidential space`;
+
+const LANGUAGES = [
+  { label: "English", value: "en-US" },
+  { label: "Hindi", value: "hi-IN" },
+  { label: "Spanish", value: "es-ES" },
+  { label: "French", value: "fr-FR" },
+  { label: "German", value: "de-DE" },
+  { label: "Japanese", value: "ja-JP" },
+  { label: "Arabic", value: "ar-SA" },
+  { label: "Korean", value: "ko-KR" },
+];
 
 // Format assistant messages with better structure and readability
 function AssistantMessage({ content }: { content: string }) {
@@ -132,6 +185,7 @@ export default function InsightChat() {
   const [loading, setLoading] = useState(false);
   const [listening, setListening] = useState(false);
   const [speaking, setSpeaking] = useState(false);
+  const [language, setLanguage] = useState("en-US");
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
   const playVoice = async (text: string) => {
@@ -172,6 +226,7 @@ export default function InsightChat() {
     const recognition = new SpeechRecognition();
     recognition.continuous = false;
     recognition.interimResults = false;
+    recognition.lang = language;
     
     recognition.onstart = () => setListening(true);
     recognition.onresult = (event: any) => {
@@ -209,12 +264,39 @@ export default function InsightChat() {
     setInput("");
     setLoading(true);
     try {
+      // Context window management: keep last 10 messages + add screening context
+      const allMessages = [...messages, userMessage];
+      const contextWindow = allMessages.slice(-10);
+      
+      // Build context-aware system prompt
+      let fullSystemPrompt = SYSTEM_PROMPT;
+      
+      // Add screening results context if available from sessionStorage
+      try {
+        const stored = window.sessionStorage.getItem("mindscan-result");
+        if (stored) {
+          const parsed = JSON.parse(stored);
+          const combined = parsed?.combined;
+          if (combined) {
+            fullSystemPrompt += `\n\nSCREENING CONTEXT:
+- Risk Level: ${combined.risk_level || 'Unknown'}
+- Final Score: ${Math.round((combined.final_score || 0) * 100)}%
+- Text Analysis: ${Math.round((combined.text_score || 0) * 100)}%
+- Facial Emotion: ${combined.detected_face_emotion || 'Neutral'}
+- Vocal Emotion: ${combined.detected_voice_emotion || 'Neutral'}
+- PHQ-9 Severity: ${combined.phq9_severity || 'Unknown'}
+
+Use this context to personalize your responses, but never share scores directly unless asked.`;
+          }
+        }
+      } catch {}
+
       const response = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          systemPrompt: SYSTEM_PROMPT,
-          messages: [...messages, userMessage].map((item) => ({ role: item.role, content: item.content })),
+          systemPrompt: fullSystemPrompt,
+          messages: contextWindow.map((item) => ({ role: item.role, content: item.content })),
         }),
       });
 
@@ -269,15 +351,29 @@ export default function InsightChat() {
         <div>
           <h3 className="font-display text-2xl uppercase tracking-[0.3em] text-[var(--cream)]">Insight Chat</h3>
           <p className="font-mono mt-2 text-[10px] uppercase tracking-[0.3em] text-[var(--text-muted)]">
-            System Prompt: {SYSTEM_PROMPT}
+            AI-Powered Mental Health Support
           </p>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-6">
           {speaking && (
             <div className="flex items-center gap-2 text-[10px] uppercase tracking-[0.2em] text-[var(--amber-gold)]">
               <Volume2 className="animate-pulse" size={14} /> Speaking...
             </div>
           )}
+          <div className="flex items-center gap-2">
+            <span className="font-mono text-[9px] uppercase tracking-[0.2em] text-[var(--text-muted)]">Language:</span>
+            <select
+              value={language}
+              onChange={(e) => setLanguage(e.target.value)}
+              className="cursor-pointer bg-transparent font-mono text-[10px] uppercase tracking-[0.2em] text-[var(--cream)] outline-none transition-colors hover:text-[var(--amber-gold)]"
+            >
+              {LANGUAGES.map((lang) => (
+                <option key={lang.value} value={lang.value} className="bg-zinc-900">
+                  {lang.label}
+                </option>
+              ))}
+            </select>
+          </div>
           <button
             onClick={handleClear}
             className="border border-[var(--cream)] px-4 py-2 text-[10px] uppercase tracking-[0.3em] text-[var(--cream)] hover:bg-[var(--cream)] hover:text-black transition-colors"

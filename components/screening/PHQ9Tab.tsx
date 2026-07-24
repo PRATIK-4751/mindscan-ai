@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import LoadingSpinner from "../shared/LoadingSpinner";
 import { analyzePHQ9 } from "../../lib/api";
@@ -14,9 +14,10 @@ export interface PHQ9TabResult {
 
 interface PHQ9TabProps {
   onComplete: (data: PHQ9TabResult) => void;
+  textContext?: string;
 }
 
-const questions = [
+const defaultQuestions = [
   "Little interest or pleasure in doing things?",
   "Feeling down, depressed, or hopeless?",
   "Trouble falling or staying asleep, or sleeping too much?",
@@ -35,11 +36,37 @@ const options = [
   { label: "Nearly every day", value: 3 },
 ];
 
-export default function PHQ9Tab({ onComplete }: PHQ9TabProps) {
+export default function PHQ9Tab({ onComplete, textContext }: PHQ9TabProps) {
+  const [questions, setQuestions] = useState<string[]>(defaultQuestions);
+  const [loadingQuestions, setLoadingQuestions] = useState(true);
   const [index, setIndex] = useState(0);
-  const [answers, setAnswers] = useState<number[]>(Array(questions.length).fill(-1));
+  const [answers, setAnswers] = useState<number[]>(Array(9).fill(-1));
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const fetchQuestions = async () => {
+      try {
+        const res = await fetch("/api/phq9/questions", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            textContext: textContext || null,
+            previousQuestions: null,
+          }),
+        });
+        const data = await res.json();
+        if (data.questions && Array.isArray(data.questions) && data.questions.length === 9) {
+          setQuestions(data.questions);
+        }
+      } catch {
+        // Keep default questions on error
+      } finally {
+        setLoadingQuestions(false);
+      }
+    };
+    fetchQuestions();
+  }, [textContext]);
 
   const handleSelect = (value: number) => {
     const next = [...answers];
@@ -71,6 +98,17 @@ export default function PHQ9Tab({ onComplete }: PHQ9TabProps) {
   const progress = ((index + 1) / questions.length) * 100;
   const complete = answers.every((value) => value >= 0);
 
+  if (loadingQuestions) {
+    return (
+      <div className="card-shell p-8">
+        <p className="font-mono text-xs uppercase tracking-[0.3em] text-[var(--text-muted)] mb-4">
+          Generating personalized questions...
+        </p>
+        <LoadingSpinner />
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-8">
       <div className="relative border border-white/10 bg-black/40 p-8">
@@ -87,15 +125,23 @@ export default function PHQ9Tab({ onComplete }: PHQ9TabProps) {
             transition={{ duration: 0.3 }}
             className="mt-8"
           >
+            <p className="font-mono text-[10px] uppercase tracking-[0.3em] text-[var(--text-muted)] mb-2">
+              Over the last 2 weeks, how often have you been bothered by:
+            </p>
             <h3 className="font-display text-2xl uppercase tracking-[0.2em] text-[var(--cream)]">
               {questions[index]}
             </h3>
+            {index === 8 && (
+              <p className="mt-2 text-xs text-[var(--danger)]">
+                If you are in crisis or having thoughts of self-harm, please reach out to 988 (call/text) or text HOME to 741741.
+              </p>
+            )}
             <div className="mt-6 grid gap-4">
               {options.map((option) => (
                 <button
                   key={option.value}
                   onClick={() => handleSelect(option.value)}
-                  className="flex w-full items-center justify-between border border-white/20 px-4 py-3 text-left text-xs uppercase tracking-[0.3em] text-[var(--cream)]"
+                  className="flex w-full items-center justify-between border border-white/20 px-4 py-3 text-left text-xs uppercase tracking-[0.3em] text-[var(--cream)] hover:bg-white/5 transition-colors"
                 >
                   <span>{option.label}</span>
                   <span>{option.value}</span>

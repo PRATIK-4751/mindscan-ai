@@ -17,6 +17,17 @@ interface VoiceTabProps {
   onComplete: (data: VoiceTabResult) => void;
 }
 
+const LANGUAGES = [
+  { label: "English", value: "en-US" },
+  { label: "Hindi", value: "hi-IN" },
+  { label: "Spanish", value: "es-ES" },
+  { label: "French", value: "fr-FR" },
+  { label: "German", value: "de-DE" },
+  { label: "Japanese", value: "ja-JP" },
+  { label: "Arabic", value: "ar-SA" },
+  { label: "Korean", value: "ko-KR" },
+];
+
 export default function VoiceTab({ onComplete }: VoiceTabProps) {
   const waveformRef = useRef<HTMLDivElement | null>(null);
   const wavesurfer = useRef<WaveSurfer | null>(null);
@@ -28,6 +39,7 @@ export default function VoiceTab({ onComplete }: VoiceTabProps) {
   const recognitionRef = useRef<any>(null);
   const [voiceScore, setVoiceScore] = useState(0);
   const [emotion, setEmotion] = useState("Neutral");
+  const [language, setLanguage] = useState("en-US");
   
   // Native MediaRecorder state
   const mediaRecorder = useRef<MediaRecorder | null>(null);
@@ -36,10 +48,51 @@ export default function VoiceTab({ onComplete }: VoiceTabProps) {
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const chunksRef = useRef<Blob[]>([]);
 
-  const startRecording = async () => {
+  // Use refs to avoid stale closures in callbacks
+  const recordingTimeRef = useRef(0);
+  const transcriptRef = useRef("");
+
+  // Playback state
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [playbackTime, setPlaybackTime] = useState(0);
+
+  // Keep refs in sync with state
+  useEffect(() => { recordingTimeRef.current = recordingTime; }, [recordingTime]);
+  useEffect(() => { transcriptRef.current = transcript; }, [transcript]);
+
+  const handleRecordingComplete = useCallback(async (blob: Blob) => {
+    const url = URL.createObjectURL(blob);
+    setAudioUrl(url);
+    setLoading(true);
+    setError(null);
+    try {
+      const file = new File([blob], "voice.webm", { type: blob.type || "audio/webm" });
+      // Use refs to get latest values (avoids stale closure)
+      const finalTranscript = transcriptRef.current;
+      const finalDuration = Math.min(recordingTimeRef.current || 1, 30);
+      const result = await analyzeVoice(file, finalTranscript);
+      setVoiceScore(result.voice_score);
+      setEmotion(result.detected_voice_emotion);
+      onComplete({
+        voice_score: result.voice_score,
+        detected_voice_emotion: result.detected_voice_emotion,
+        audioUrl: url,
+        duration: finalDuration,
+        transcript: finalTranscript
+      });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Unable to analyze voice.");
+    } finally {
+      setLoading(false);
+    }
+  }, [onComplete]);
+
+  const startRecording = useCallback(async () => {
     try {
       setError(null);
       setTranscript("");
+      setIsPlaying(false);
+      setPlaybackTime(0);
       
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       mediaRecorder.current = new MediaRecorder(stream);
@@ -51,6 +104,7 @@ export default function VoiceTab({ onComplete }: VoiceTabProps) {
         recognitionRef.current = new SpeechRecognition();
         recognitionRef.current.continuous = true;
         recognitionRef.current.interimResults = true;
+        recognitionRef.current.lang = language;
         recognitionRef.current.onresult = (event: any) => {
           let currentTranscript = "";
           for (let i = 0; i < event.results.length; i++) {
@@ -68,7 +122,7 @@ export default function VoiceTab({ onComplete }: VoiceTabProps) {
       mediaRecorder.current.onstop = () => {
         const blob = new Blob(chunksRef.current, { type: "audio/webm" });
         handleRecordingComplete(blob);
-        stream.getTracks().forEach(track => track.stop()); // cleanup microphone
+        stream.getTracks().forEach(track => track.stop());
       };
 
       mediaRecorder.current.start();
@@ -77,20 +131,29 @@ export default function VoiceTab({ onComplete }: VoiceTabProps) {
       
       timerRef.current = setInterval(() => {
         setRecordingTime((prev) => {
-          if (prev >= 29) {
-            stopRecording();
+          const next = prev + 1;
+          if (next >= 30) {
+            // Auto-stop at 30 seconds
+            if (mediaRecorder.current && mediaRecorder.current.state === "recording") {
+              mediaRecorder.current.stop();
+            }
+            if (recognitionRef.current) {
+              recognitionRef.current.stop();
+            }
+            setIsRecording(false);
+            if (timerRef.current) clearInterval(timerRef.current);
             return 30;
           }
-          return prev + 1;
+          return next;
         });
       }, 1000);
     } catch (err) {
       console.error(err);
       setError("Microphone access denied or not available. Please allow microphone permissions.");
     }
-  };
+  }, [language, handleRecordingComplete]);
 
-  const stopRecording = () => {
+  const stopRecording = useCallback(() => {
     if (mediaRecorder.current && mediaRecorder.current.state === "recording") {
       mediaRecorder.current.stop();
     }
@@ -99,33 +162,9 @@ export default function VoiceTab({ onComplete }: VoiceTabProps) {
     }
     setIsRecording(false);
     if (timerRef.current) clearInterval(timerRef.current);
-  };
+  }, []);
 
-  const handleRecordingComplete = useCallback(async (blob: Blob) => {
-    const url = URL.createObjectURL(blob);
-    setAudioUrl(url);
-    setLoading(true);
-    setError(null);
-    try {
-      const file = new File([blob], "voice.webm", { type: blob.type || "audio/webm" });
-      // Pass the transcribed text along with the audio file
-      const result = await analyzeVoice(file, transcript);
-      setVoiceScore(result.voice_score);
-      setEmotion(result.detected_voice_emotion);
-      onComplete({
-        voice_score: result.voice_score,
-        detected_voice_emotion: result.detected_voice_emotion,
-        audioUrl: url,
-        duration: Math.min(recordingTime || 1, 30),
-        transcript: transcript
-      });
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Unable to analyze voice.");
-    } finally {
-      setLoading(false);
-    }
-  }, [onComplete, recordingTime]);
-
+  // WaveSurfer setup
   useEffect(() => {
     if (!audioUrl || !waveformRef.current) return;
     if (wavesurfer.current) {
@@ -135,16 +174,43 @@ export default function VoiceTab({ onComplete }: VoiceTabProps) {
       container: waveformRef.current,
       waveColor: "#f5a623",
       progressColor: "#c0392b",
-      height: 80,
-      barWidth: 2,
+      height: 100,
+      barWidth: 3,
+      barGap: 2,
       cursorWidth: 0,
+      normalize: true,
+      backend: "WebAudio" as any,
     });
     wavesurfer.current.load(audioUrl);
+    
+    wavesurfer.current.on("play", () => setIsPlaying(true));
+    wavesurfer.current.on("pause", () => setIsPlaying(false));
+    wavesurfer.current.on("finish", () => setIsPlaying(false));
+    wavesurfer.current.on("audioprocess", () => {
+      if (wavesurfer.current) {
+        setPlaybackTime(wavesurfer.current.getCurrentTime());
+      }
+    });
+    
     return () => {
       wavesurfer.current?.destroy();
       wavesurfer.current = null;
     };
   }, [audioUrl]);
+
+  const togglePlayback = useCallback(() => {
+    if (wavesurfer.current) {
+      wavesurfer.current.playPause();
+    }
+  }, []);
+
+  const seekPlayback = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    if (wavesurfer.current) {
+      const time = parseFloat(e.target.value);
+      wavesurfer.current.seekTo(time / wavesurfer.current.getDuration());
+      setPlaybackTime(time);
+    }
+  }, []);
 
   const metrics = useMemo(() => {
     const base = Math.min(Math.max(voiceScore, 0), 1);
@@ -155,29 +221,60 @@ export default function VoiceTab({ onComplete }: VoiceTabProps) {
     ];
   }, [voiceScore]);
 
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      if (timerRef.current) clearInterval(timerRef.current);
+      if (recognitionRef.current) recognitionRef.current.stop();
+      if (mediaRecorder.current && mediaRecorder.current.state === "recording") {
+        mediaRecorder.current.stop();
+      }
+    };
+  }, []);
+
   return (
     <div className="space-y-8">
       <div className="grid gap-6 lg:grid-cols-[1.4fr_1fr]">
         <div className="border border-white/10 bg-black/60 p-6">
           <div className="mb-4 flex items-center justify-between">
-            <span className="font-mono text-xs uppercase tracking-[0.3em] text-[var(--cream)]">REC ●</span>
+            <div className="flex items-center gap-4">
+              <span className={`font-mono text-xs uppercase tracking-[0.3em] ${isRecording ? "text-red-400" : "text-[var(--cream)]"}`}>
+                {isRecording ? "● REC" : "○ READY"}
+              </span>
+              <select
+                value={language}
+                onChange={(e) => setLanguage(e.target.value)}
+                disabled={isRecording}
+                className="cursor-pointer bg-transparent font-mono text-[10px] uppercase tracking-[0.2em] text-[var(--text-muted)] outline-none transition-colors hover:text-[var(--cream)] disabled:opacity-40"
+              >
+                {LANGUAGES.map((lang) => (
+                  <option key={lang.value} value={lang.value} className="bg-zinc-900">
+                    {lang.label}
+                  </option>
+                ))}
+              </select>
+            </div>
             <span className="font-mono text-xs uppercase tracking-[0.3em] text-[var(--text-muted)]">
               {isRecording ? `00:${recordingTime.toString().padStart(2, "0")}` : "00:00"}
             </span>
           </div>
-          <div className="relative flex h-48 items-center justify-center border border-white/20">
+          <div className="relative flex h-48 flex-col items-center justify-center border border-white/20">
             <div className={`absolute h-40 w-40 rounded-full border border-[var(--rust)] opacity-40 ${isRecording ? "ring-pulse" : ""}`} />
             <div className={`absolute h-28 w-28 rounded-full border border-[var(--rust)] opacity-60 ${isRecording ? "ring-pulse" : ""}`} />
             <div className={`absolute h-16 w-16 rounded-full border border-[var(--rust)] opacity-80 ${isRecording ? "ring-pulse" : ""}`} />
-            <button
-              onClick={() => (isRecording ? stopRecording() : startRecording())}
-              className="font-display border border-[var(--cream)] px-6 py-3 text-xs uppercase tracking-[0.35em] text-[var(--cream)]"
-            >
-              {isRecording ? "Stop" : "Record"}
-            </button>
+            
+            <div className="relative z-10">
+              <button
+                onClick={() => (isRecording ? stopRecording() : startRecording())}
+                disabled={loading}
+                className="font-display border border-[var(--cream)] px-6 py-3 text-xs uppercase tracking-[0.35em] text-[var(--cream)] transition-all hover:bg-[var(--cream)] hover:text-black disabled:opacity-40"
+              >
+                {isRecording ? "Stop" : loading ? "Analyzing..." : "Record"}
+              </button>
+            </div>
           </div>
           <p className="mt-4 font-mono text-[10px] uppercase tracking-[0.3em] text-[var(--text-muted)]">
-            Record up to 30 seconds
+            Record up to 30 seconds — auto-stops at limit
           </p>
         </div>
         <div className="card-shell p-6">
@@ -190,7 +287,7 @@ export default function VoiceTab({ onComplete }: VoiceTabProps) {
                   <span>{metric.value}%</span>
                 </div>
                 <div className="mt-2 h-[3px] w-full bg-[#1a1410]">
-                  <div className="h-full bg-[var(--amber-gold)]" style={{ width: `${metric.value}%` }} />
+                  <div className="h-full bg-[var(--amber-gold)] transition-all duration-500" style={{ width: `${metric.value}%` }} />
                 </div>
               </div>
             ))}
@@ -201,17 +298,45 @@ export default function VoiceTab({ onComplete }: VoiceTabProps) {
           {transcript && (
             <div className="mt-6 border-t border-white/10 pt-4">
               <h5 className="font-mono text-[10px] uppercase tracking-[0.2em] text-[var(--cream)] mb-2">Transcript</h5>
-              <p className="font-body text-xs text-[var(--text-muted)]">{transcript}</p>
+              <p className="font-body text-xs text-[var(--text-muted)] max-h-24 overflow-y-auto">{transcript}</p>
             </div>
           )}
         </div>
       </div>
       <div className="card-shell p-6">
-        <h4 className="font-display text-xl uppercase tracking-[0.3em] text-[var(--cream)]">Waveform</h4>
+        <div className="flex items-center justify-between">
+          <h4 className="font-display text-xl uppercase tracking-[0.3em] text-[var(--cream)]">Waveform</h4>
+          {audioUrl && (
+            <div className="flex items-center gap-4">
+              <span className="font-mono text-[10px] uppercase tracking-[0.2em] text-[var(--text-muted)]">
+                {formatTime(playbackTime)} / {formatTime(recordingTime)}
+              </span>
+            </div>
+          )}
+        </div>
         <div className="mt-6">
-          <div ref={waveformRef} />
-          {!audioUrl && (
-            <div className="mt-4 text-xs uppercase tracking-[0.3em] text-[var(--text-muted)]">
+          {audioUrl ? (
+            <>
+              <div ref={waveformRef} className="rounded bg-black/40 p-2" />
+              <div className="mt-4 flex items-center gap-4">
+                <button
+                  onClick={togglePlayback}
+                  className="border border-[var(--amber-gold)] px-4 py-2 text-[10px] uppercase tracking-[0.2em] text-[var(--amber-gold)] hover:bg-[var(--amber-gold)] hover:text-black transition-colors"
+                >
+                  {isPlaying ? "Pause" : "Play"}
+                </button>
+                <input
+                  type="range"
+                  min={0}
+                  max={recordingTime}
+                  value={playbackTime}
+                  onChange={seekPlayback}
+                  className="flex-1 h-1 bg-[var(--rust)] rounded cursor-pointer accent-[var(--amber-gold)]"
+                />
+              </div>
+            </>
+          ) : (
+            <div className="flex h-24 items-center justify-center border border-dashed border-white/10 text-xs uppercase tracking-[0.3em] text-[var(--text-muted)]">
               Record audio to view waveform
             </div>
           )}
@@ -225,4 +350,10 @@ export default function VoiceTab({ onComplete }: VoiceTabProps) {
       {error && <div className="border border-[var(--danger)] p-4 text-sm text-[var(--danger)]">{error}</div>}
     </div>
   );
+}
+
+function formatTime(seconds: number): string {
+  const mins = Math.floor(seconds / 60);
+  const secs = Math.floor(seconds % 60);
+  return `${mins}:${secs.toString().padStart(2, "0")}`;
 }

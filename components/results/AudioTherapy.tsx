@@ -1,5 +1,6 @@
 "use client";
 import { useState, useRef, useEffect, useCallback } from "react";
+import Image from "next/image";
 import { Play, Pause, Volume2, SkipBack, SkipForward, AlertCircle } from "lucide-react";
 
 const PLAYLIST = [
@@ -37,9 +38,22 @@ export default function AudioTherapy({ riskLevel }: { riskLevel: string }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const barRef      = useRef<HTMLDivElement>(null);
   const timerRef    = useRef<ReturnType<typeof setInterval> | null>(null);
+  const retryCount  = useRef(0);
+  const MAX_RETRIES = 2;
 
   const track    = PLAYLIST[idx];
   const albumArt = ALBUM_ART[idx % ALBUM_ART.length];
+
+  const skip = useCallback((dir: 1 | -1) => {
+    const next = (idx + dir + PLAYLIST.length) % PLAYLIST.length;
+    setIdx(next);
+    setProgress(0);
+    setDuration(0);
+    setError(null);
+    setReady(false);
+    retryCount.current = 0;
+    setPlaying(true);
+  }, [idx]);
 
   useEffect(() => {
     let cancelled = false;
@@ -69,6 +83,7 @@ export default function AudioTherapy({ riskLevel }: { riskLevel: string }) {
             setReady(true);
             setDuration(ytPlayer.current.getDuration?.() || 0);
             setError(null);
+            retryCount.current = 0;
           },
           onStateChange: (e: any) => {
             if (cancelled) return;
@@ -76,12 +91,27 @@ export default function AudioTherapy({ riskLevel }: { riskLevel: string }) {
             if (e.data === YT.ENDED) skip(1);
             if (e.data === YT.PLAYING) {
               setDuration(ytPlayer.current.getDuration?.() || 0);
+              setError(null);
+              retryCount.current = 0;
             }
           },
-          onError: () => {
+          onError: (e: any) => {
             if (cancelled) return;
-            setError("This track can't be played. Try skipping.");
-            setPlaying(false);
+            retryCount.current += 1;
+            if (retryCount.current <= MAX_RETRIES) {
+              // Retry the same track once
+              setTimeout(() => {
+                if (!cancelled && ytPlayer.current?.loadVideoById) {
+                  ytPlayer.current.loadVideoById(track.id);
+                }
+              }, 1000);
+              setError(`Retrying track... (${retryCount.current}/${MAX_RETRIES})`);
+            } else {
+              setError("This track can't be played. Auto-skipping...");
+              setTimeout(() => {
+                if (!cancelled) skip(1);
+              }, 1500);
+            }
           },
         },
       });
@@ -121,15 +151,7 @@ export default function AudioTherapy({ riskLevel }: { riskLevel: string }) {
     return () => { if (timerRef.current) clearInterval(timerRef.current); };
   }, [playing, ready, seeking]);
 
-  const skip = useCallback((dir: 1 | -1) => {
-    const next = (idx + dir + PLAYLIST.length) % PLAYLIST.length;
-    setIdx(next);
-    setProgress(0);
-    setDuration(0);
-    setError(null);
-    setReady(false);
-    setPlaying(true);
-  }, [idx]);
+
 
   const pctFromEvent = (e: React.MouseEvent<HTMLDivElement>) => {
     if (!barRef.current) return 0;
@@ -190,12 +212,16 @@ export default function AudioTherapy({ riskLevel }: { riskLevel: string }) {
 
         <div className="flex flex-col sm:flex-row items-center gap-6 sm:gap-10">
           <div className="relative h-48 w-48 shrink-0 overflow-hidden border border-white/20 shadow-[2px_2px_0px_rgba(255,255,255,0.2)] bg-black p-1 sm:h-40 sm:w-40">
-            <img
+            <Image
               src={albumArt}
               alt="Cover Art"
+              width={192}
+              height={192}
               className={`h-full w-full object-cover transition-all duration-1000 ${
                 playing && !error ? "scale-105 brightness-110" : "scale-100 grayscale-[30%]"
               }`}
+              priority={idx === 0}
+              sizes="(max-width: 640px) 160px, 192px"
             />
             {playing && !error && (
               <div className="absolute bottom-2 right-2 flex items-end gap-1 h-4 z-10">

@@ -89,7 +89,7 @@ export default function ScreeningPage() {
       case "voice":
         return <VoiceTab onComplete={setVoiceResult} />;
       case "phq9":
-        return <PHQ9Tab onComplete={setPhq9Result} />;
+        return <PHQ9Tab onComplete={setPhq9Result} textContext={textResult?.text} />;
       default:
         return null;
     }

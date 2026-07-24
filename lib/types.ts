@@ -3,7 +3,7 @@ export interface LimeWord {
   score: number;
 }
 
-export type RiskLevel = "Low Risk" | "Medium Risk" | "High Risk";
+export type RiskLevel = "Low Risk" | "Medium Risk" | "High Risk" | "High Risk (Silent Distress)";
 
 export interface AnalysisResult {
   text_score: number;

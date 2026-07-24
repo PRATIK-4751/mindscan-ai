@@ -9,13 +9,14 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Text is required" }, { status: 400 });
     }
 
-    const ELEVENLABS_API_KEY = process.env.ELEVENLABS_API_KEY;
+    const ELEVENLABS_API_KEY = process.env.ELEVENLABS_API_KEY?.trim();
     if (!ELEVENLABS_API_KEY) {
       return NextResponse.json({ error: "API key is missing" }, { status: 500 });
     }
 
-    // Default Rachel voice ID or similar
-    const VOICE_ID = "21m00Tcm4TlvDq8ikWAM"; // Rachel
+    // Use a pre-made voice that is available on the free tier
+    // Bella: EXAVITQu4vr4xnSDxMaL, Rachel: 21m00Tcm4TlvDq8ikWAM, Antoni: MF3mGyEYCl7XYWbV9CcA
+    const VOICE_ID = (process.env.ELEVENLABS_VOICE_ID || "EXAVITQu4vr4xnSDxMaL").trim(); 
 
     const response = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${VOICE_ID}?output_format=mp3_44100_128`, {
       method: "POST",
@@ -25,7 +26,7 @@ export async function POST(request: Request) {
       },
       body: JSON.stringify({
         text,
-        model_id: "eleven_monolingual_v1",
+        model_id: "eleven_multilingual_v2",
         voice_settings: {
           stability: 0.5,
           similarity_boost: 0.75,
@@ -34,9 +35,10 @@ export async function POST(request: Request) {
     });
 
     if (!response.ok) {
-      const errorText = await response.text();
-      console.error("ElevenLabs Error:", errorText);
-      return NextResponse.json({ error: "Failed to generate speech" }, { status: 500 });
+      const errorData = await response.json().catch(() => ({}));
+      const errorMsg = errorData?.detail?.message || "Failed to generate speech";
+      console.error("ElevenLabs Error:", errorData);
+      return NextResponse.json({ error: errorMsg, details: errorData }, { status: response.status });
     }
 
     // Return the raw audio buffer

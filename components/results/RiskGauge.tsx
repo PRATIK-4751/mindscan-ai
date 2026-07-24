@@ -11,6 +11,7 @@ const COLORS = {
   "Low Risk":    { stroke: "#2ecc71", glow: "rgba(46,204,113,0.4)",  label: "#2ecc71" },
   "Medium Risk": { stroke: "#F5A623", glow: "rgba(245,166,35,0.4)",  label: "#F5A623" },
   "High Risk":   { stroke: "#C0392B", glow: "rgba(192,57,43,0.5)",   label: "#C0392B" },
+  "High Risk (Silent Distress)": { stroke: "#C0392B", glow: "rgba(192,57,43,0.5)", label: "#C0392B" },
 } as const;
 
 export default function RiskGauge({ score, riskLevel }: RiskGaugeProps) {

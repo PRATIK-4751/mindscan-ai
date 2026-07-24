@@ -189,3 +189,145 @@ button {
 html[data-magicui-theme-vt="active"]::view-transition-group(root) {
   animation-duration: var(--magicui-theme-toggle-vt-duration, 500ms);
 }
+
+/* ── RETRO CRT / 2000s VIBE ── */
+.crt-effect {
+  position: relative;
+  overflow: hidden;
+}
+
+.crt-effect::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(
+    ellipse at center,
+    transparent 60%,
+    rgba(0, 0, 0, 0.4) 100%
+  );
+  pointer-events: none;
+  z-index: 2;
+}
+
+.scanlines {
+  background-image: repeating-linear-gradient(
+    to bottom,
+    rgba(0, 204, 255, 0.03),
+    rgba(0, 204, 255, 0.03) 1px,
+    transparent 1px,
+    transparent 2px
+  );
+  mix-blend-mode: overlay;
+}
+
+.scanlines::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    to bottom,
+    transparent 0%,
+    rgba(0, 255, 136, 0.02) 50%,
+    transparent 100%
+  );
+  animation: scan-beam 4s linear infinite;
+  pointer-events: none;
+}
+
+@keyframes scan-beam {
+  0% { transform: translateY(-100%); }
+  100% { transform: translateY(100%); }
+}
+
+/* Retro Button Styles */
+.retro-btn {
+  font-family: var(--font-mono), ui-monospace, Menlo, monospace;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.15em;
+  padding: 10px 16px;
+  border: 1px solid #444;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  position: relative;
+  overflow: hidden;
+}
+
+.retro-btn::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.05), transparent);
+  transition: left 0.3s ease;
+}
+
+.retro-btn:hover::before {
+  left: 100%;
+}
+
+.retro-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.retro-btn-primary {
+  background: rgba(0, 204, 255, 0.1);
+  border-color: #00ccff;
+  color: #00ccff;
+}
+.retro-btn-primary:hover:not(:disabled) {
+  background: rgba(0, 204, 255, 0.2);
+  box-shadow: 0 0 15px rgba(0, 204, 255, 0.2);
+}
+
+.retro-btn-secondary {
+  background: rgba(0, 255, 136, 0.1);
+  border-color: #00ff88;
+  color: #00ff88;
+}
+.retro-btn-secondary:hover:not(:disabled) {
+  background: rgba(0, 255, 136, 0.2);
+  box-shadow: 0 0 15px rgba(0, 255, 136, 0.2);
+}
+
+.retro-btn-accent {
+  background: rgba(255, 51, 255, 0.1);
+  border-color: #ff33ff;
+  color: #ff33ff;
+}
+.retro-btn-accent:hover:not(:disabled) {
+  background: rgba(255, 51, 255, 0.2);
+  box-shadow: 0 0 15px rgba(255, 51, 255, 0.2);
+}
+
+.retro-btn-danger {
+  background: rgba(255, 51, 51, 0.15);
+  border-color: #ff3333;
+  color: #ff3333;
+  animation: pulse-rec 1s ease-in-out infinite;
+}
+.retro-btn-danger:hover:not(:disabled) {
+  background: rgba(255, 51, 51, 0.25);
+  box-shadow: 0 0 15px rgba(255, 51, 51, 0.3);
+}
+
+@keyframes pulse-rec {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.7; }
+}
+
+/* Retro Glitch Text */
+@keyframes glitch {
+  0%, 100% { transform: translate(0); }
+  20% { transform: translate(-1px, 1px); }
+  40% { transform: translate(1px, -1px); }
+  60% { transform: translate(-1px, -1px); }
+  80% { transform: translate(1px, 1px); }
+}
+
+.retro-glitch {
+  animation: glitch 0.3s ease-in-out infinite;
+}

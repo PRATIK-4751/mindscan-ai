@@ -18,20 +18,46 @@ const normalizeError = (error: unknown) => {
   return error;
 };
 
-export async function analyzeText(text: string) {
+export interface TextAnalysisResponse {
+  reply: string;
+  text_score: number;
+  lime_words: LimeWord[];
+  detected_emotions: string[];
+  summary: string;
+}
+
+export async function analyzeText(text: string): Promise<TextAnalysisResponse> {
   try {
-    const { data } = await api.post<{ text_score: number; lime_words: LimeWord[] }>("/text", { text });
+    const { data } = await api.post<TextAnalysisResponse>("/text", { text });
     return data;
   } catch (error) {
     throw normalizeError(error);
   }
 }
 
-export async function analyzeFace(image: File) {
+export interface FaceDetectionClientResult {
+  emotions: Record<string, number>;
+  dominant_emotion: string;
+  confidence: number;
+  face_detected: boolean;
+}
+
+export async function analyzeFace(image: File, clientEmotions?: FaceDetectionClientResult) {
   try {
     const formData = new FormData();
     formData.append("image", image);
-    const { data } = await api.post<{ face_score: number; detected_face_emotion: string }>("/vision", formData);
+    if (clientEmotions) {
+      formData.append("clientEmotions", JSON.stringify(clientEmotions));
+    }
+    const { data } = await api.post<{
+      face_score: number;
+      detected_face_emotion: string;
+      faces_detected: number;
+      emotions: Record<string, number> | null;
+      dominant_emotion: string | null;
+      emotion_confidence: number | null;
+      google_labels: string[];
+    }>("/vision", formData);
     return data;
   } catch (error) {
     throw normalizeError(error);
@@ -43,7 +69,7 @@ export async function analyzeVoice(audio: File, transcript?: string) {
     const formData = new FormData();
     formData.append("audio", audio);
     if (transcript) formData.append("transcript", transcript);
-    const { data } = await api.post<{ voice_score: number; detected_voice_emotion: string, transcript?: string }>("/voice", formData);
+    const { data } = await api.post<{ voice_score: number; detected_voice_emotion: string; transcript?: string }>("/voice", formData);
     return data;
   } catch (error) {
     throw normalizeError(error);
@@ -69,6 +95,27 @@ export async function analyzeCombined(payload: {
 }) {
   try {
     const { data } = await api.post<AnalysisResult>("/combined", payload);
+    return data;
+  } catch (error) {
+    throw normalizeError(error);
+  }
+}
+
+export async function sendChatMessage(
+  messages: Array<{ role: string; content: string }>,
+  systemPrompt?: string
+) {
+  try {
+    const { data } = await api.post<{ reply: string }>("/chat", { messages, systemPrompt });
+    return data;
+  } catch (error) {
+    throw normalizeError(error);
+  }
+}
+
+export async function generateTTS(text: string) {
+  try {
+    const { data } = await api.post<{ audio: string }>("/tts", { text });
     return data;
   } catch (error) {
     throw normalizeError(error);
