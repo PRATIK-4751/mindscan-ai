@@ -126,7 +126,7 @@ export default function ScreeningPage() {
         )}
         {error && <div className="mt-6 border border-[var(--danger)] p-4 text-sm text-[var(--danger)]">{error}</div>}
       </section>
-      <TabProgress completed={completed} onAnalyzeAll={handleAnalyzeAll} />
+      <TabProgress completed={completed} onAnalyzeAll={handleAnalyzeAll} loading={loading} />
     </main>
   );
 }

@@ -1,8 +1,9 @@
-import Link from "next/link";
+import { Loader2 } from "lucide-react";
 
 interface TabProgressProps {
   completed: { text: boolean; face: boolean; voice: boolean; phq9: boolean };
   onAnalyzeAll: () => void;
+  loading?: boolean;
 }
 
 const labels = [
@@ -12,7 +13,7 @@ const labels = [
   { key: "phq9", label: "04_PHQ-9" },
 ];
 
-export default function TabProgress({ completed, onAnalyzeAll }: TabProgressProps) {
+export default function TabProgress({ completed, onAnalyzeAll, loading }: TabProgressProps) {
   const completedCount = Object.values(completed).filter(Boolean).length;
   return (
     <div className="sticky bottom-0 border-t border-white/10 bg-black/80 px-6 py-4 backdrop-blur">
@@ -24,10 +25,13 @@ export default function TabProgress({ completed, onAnalyzeAll }: TabProgressProp
               <span
                 key={item.key}
                 className={`border px-3 py-2 ${
-                  done ? "border-[var(--amber-gold)] bg-[var(--amber-gold)] text-black" : "border-[var(--rust)] text-[var(--cream)]"
+                  done
+                    ? "border-[var(--amber-gold)] bg-[var(--amber-gold)] text-black"
+                    : "border-[var(--rust)] text-[var(--cream)]"
                 }`}
               >
                 {item.label}
+                {done && " ✓"}
               </span>
             );
           })}
@@ -38,14 +42,20 @@ export default function TabProgress({ completed, onAnalyzeAll }: TabProgressProp
           </span>
           <button
             onClick={onAnalyzeAll}
-            disabled={completedCount < 1}
-            className="font-display flex-1 border border-[var(--cream)] px-6 py-2 text-xs uppercase tracking-[0.35em] text-[var(--cream)] disabled:opacity-40"
+            disabled={completedCount < 1 || loading}
+            className="font-display flex flex-1 items-center justify-center gap-2 border border-[var(--amber-gold)] bg-[var(--amber-gold)] px-6 py-2 text-xs font-bold uppercase tracking-[0.35em] text-black disabled:opacity-40 hover:bg-[var(--cream)] transition-colors md:flex-none"
           >
-            Analyze All
+            {loading ? (
+              <>
+                <Loader2 className="animate-spin" size={14} />
+                Analyzing...
+              </>
+            ) : completedCount >= 4 ? (
+              "Submit & View Results"
+            ) : (
+              "Analyze & View Results"
+            )}
           </button>
-          <Link href="/results" className="font-display border border-[var(--rust)] px-6 py-2 text-xs uppercase tracking-[0.35em] text-[var(--rust)]">
-            View Results
-          </Link>
         </div>
       </div>
     </div>

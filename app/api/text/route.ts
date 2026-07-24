@@ -1,17 +1,10 @@
-import { NextResponse } from 'next/server';
+import { NextResponse } from "next/server";
+import { callLLM } from "../../../lib/llm";
 
 export async function POST(request: Request) {
   try {
     const { text } = await request.json();
     if (!text) return NextResponse.json({ error: "No text provided" }, { status: 400 });
-
-    const apiKey = process.env.OLLAMA_CLOUD_API_KEY?.trim();
-    const apiUrl = (process.env.OLLAMA_CLOUD_API_URL || "https://api.ollama.com/v1/chat/completions").trim();
-    const model = (process.env.OLLAMA_CLOUD_MODEL || "llama3.1:70b").trim();
-
-    if (!apiKey) {
-      return fallbackAnalysis(text);
-    }
 
     const systemPrompt = `You are MindScan, an empathetic mental health screening AI. A user has shared their personal story with you.
 
@@ -55,37 +48,17 @@ CRITICAL:
 - The JSON must be parseable — no markdown, no extra text outside the JSON
 - If the user shares something concerning, acknowledge it directly`;
 
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 30000);
-
-    const response = await fetch(apiUrl, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${apiKey}`,
-      },
-      body: JSON.stringify({
-        model,
+    try {
+      const content = await callLLM({
         messages: [
           { role: "system", content: systemPrompt },
-          { role: "user", content: text }
+          { role: "user", content: text },
         ],
         temperature: 0.7,
-        max_tokens: 600,
-      }),
-      signal: controller.signal,
-    });
-    clearTimeout(timer);
+        maxTokens: 600,
+        timeoutMs: 30_000,
+      });
 
-    if (response.ok) {
-      const data = await response.json();
-      const content =
-        data?.choices?.[0]?.message?.content ??
-        data?.message?.content ??
-        data?.response ??
-        "{}";
-
-      // Try to parse as JSON
       const match = content.match(/\{[\s\S]*\}/);
       const jsonStr = match ? match[0] : content;
 
@@ -94,28 +67,30 @@ CRITICAL:
         return NextResponse.json({
           reply: parsed.reply || "Thank you for sharing. I hear you.",
           text_score: Math.min(Math.max(parsed.text_score || 0, 0), 1),
-          lime_words: Array.isArray(parsed.lime_words) ? parsed.lime_words.map((w: any) => ({
-            word: String(w.word || ""),
-            score: Math.min(Math.max(Number(w.score) || 0, 0), 1)
-          })) : [],
-          detected_emotions: Array.isArray(parsed.detected_emotions) ? parsed.detected_emotions : [],
+          lime_words: Array.isArray(parsed.lime_words)
+            ? parsed.lime_words.map((w: any) => ({
+                word: String(w.word || ""),
+                score: Math.min(Math.max(Number(w.score) || 0, 0), 1),
+              }))
+            : [],
+          detected_emotions: Array.isArray(parsed.detected_emotions)
+            ? parsed.detected_emotions
+            : [],
           summary: parsed.summary || "",
         });
-      } catch (e) {
-        // If JSON parsing fails, treat the entire response as a reply
-        console.error("Failed to parse JSON from LLM:", content);
+      } catch {
         const lexicon = fallbackLexicon(text);
         return NextResponse.json({
-          reply: content.trim() || "Thank you for sharing that with me. I can sense there's a lot of emotion in what you've told me.",
+          reply: content.trim() || "Thank you for sharing that with me.",
           text_score: lexicon.text_score,
           lime_words: lexicon.lime_words,
           detected_emotions: lexicon.detected_emotions,
           summary: "Analysis based on text patterns.",
         });
       }
+    } catch {
+      return fallbackAnalysis(text);
     }
-
-    return fallbackAnalysis(text);
   } catch (err: any) {
     console.error("Text analysis error:", err);
     return fallbackAnalysis("I'm here to listen.");
@@ -132,25 +107,25 @@ function fallbackAnalysis(text: string) {
 
 function fallbackLexicon(text: string) {
   const lowerText = text.toLowerCase();
-  const sadWords = ['sad', 'depressed', 'hopeless', 'tired', 'cry', 'alone', 'lonely', 'dark', 'pain', 'worthless', 'empty', 'numb', 'lost', 'broken', 'hurt'];
-  const anxiousWords = ['anxious', 'nervous', 'scared', 'worry', 'panic', 'fear', 'stress', 'overwhelmed', 'racing', 'cant breathe'];
-  const crisisWords = ['suicide', 'kill', 'die', 'end it', 'hurt myself', 'self harm', 'no reason to live', 'want to disappear'];
-  const angerWords = ['angry', 'furious', 'rage', 'hate', 'frustrated', 'irritated'];
+  const sadWords = ["sad", "depressed", "hopeless", "tired", "cry", "alone", "lonely", "dark", "pain", "worthless", "empty", "numb", "lost", "broken", "hurt"];
+  const anxiousWords = ["anxious", "nervous", "scared", "worry", "panic", "fear", "stress", "overwhelmed", "racing", "cant breathe"];
+  const crisisWords = ["suicide", "kill", "die", "end it", "hurt myself", "self harm", "no reason to live", "want to disappear"];
+  const angerWords = ["angry", "furious", "rage", "hate", "frustrated", "irritated"];
 
   let score = 0.15;
   const matches: { word: string; score: number }[] = [];
   const emotions: string[] = [];
 
-  crisisWords.forEach(w => {
+  crisisWords.forEach((w) => {
     if (lowerText.includes(w)) { score += 0.35; matches.push({ word: w, score: 0.9 }); if (!emotions.includes("crisis")) emotions.push("crisis"); }
   });
-  sadWords.forEach(w => {
+  sadWords.forEach((w) => {
     if (lowerText.includes(w)) { score += 0.12; matches.push({ word: w, score: 0.6 }); if (!emotions.includes("sadness")) emotions.push("sadness"); }
   });
-  anxiousWords.forEach(w => {
+  anxiousWords.forEach((w) => {
     if (lowerText.includes(w)) { score += 0.1; matches.push({ word: w, score: 0.5 }); if (!emotions.includes("anxiety")) emotions.push("anxiety"); }
   });
-  angerWords.forEach(w => {
+  angerWords.forEach((w) => {
     if (lowerText.includes(w)) { score += 0.08; matches.push({ word: w, score: 0.45 }); if (!emotions.includes("frustration")) emotions.push("frustration"); }
   });
 
@@ -161,6 +136,6 @@ function fallbackLexicon(text: string) {
     text_score: score,
     lime_words: matches.slice(0, 5),
     detected_emotions: emotions,
-    summary: `Detected ${emotions.join(', ')} with ${(score * 100).toFixed(0)}% distress level.`,
+    summary: `Detected ${emotions.join(", ")} with ${(score * 100).toFixed(0)}% distress level.`,
   };
 }
