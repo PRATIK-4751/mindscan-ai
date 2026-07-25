@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { callLLM } from "../../../lib/llm";
+import { chatLLM } from "../../../lib/llm";
 
 type ChatMessage = {
   role: "system" | "user" | "assistant";
@@ -12,19 +12,8 @@ export async function POST(request: Request) {
   const systemPrompt: string = body?.systemPrompt ?? "";
 
   try {
-    const allMessages: ChatMessage[] = [
-      ...(systemPrompt ? [{ role: "system" as const, content: systemPrompt }] : []),
-      ...messages,
-    ];
-
-    const content = await callLLM({
-      messages: allMessages,
-      temperature: 0.7,
-      maxTokens: 1024,
-      timeoutMs: 23_000,
-    });
-
-    return NextResponse.json({ reply: content });
+    const reply = await chatLLM(messages, systemPrompt);
+    return NextResponse.json({ reply });
   } catch (error: any) {
     console.error("Chat API Error:", error?.message);
     return NextResponse.json(

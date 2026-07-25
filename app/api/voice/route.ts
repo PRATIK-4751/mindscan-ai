@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { callLLM } from "../../../lib/llm";
+import { voiceAnalysisLLM } from "../../../lib/llm";
 
 export async function POST(request: Request) {
   try {
@@ -12,11 +12,10 @@ export async function POST(request: Request) {
     // If we have a transcript, analyze it deeply with the LLM
     if (transcript && transcript.trim().length > 5) {
       try {
-        const content = await callLLM({
-          messages: [
-            {
-              role: "system",
-              content: `You are a psychological voice analyst evaluating a user's spoken words for emotional content. The user has recorded a voice message as part of a mental health screening.
+        const content = await voiceAnalysisLLM([
+          {
+            role: "system",
+            content: `You are a psychological voice analyst evaluating a user's spoken words for emotional content. The user has recorded a voice message as part of a mental health screening.
 
 Analyze the TRANSCRIPT of what they said. Consider:
 - Emotional tone of their words
@@ -38,13 +37,9 @@ emotional_indicators: 2-4 specific words/phrases that reveal their emotional sta
 severity_notes: One sentence about what you observe in their words
 
 CRITICAL: If crisis language is detected (suicide, self-harm, wanting to die), set voice_score to at least 0.8 and include "Crisis" in detected_voice_emotion.`,
-            },
-            { role: "user", content: `Transcript of spoken voice message:\n\n"${transcript}"` },
-          ],
-          temperature: 0.3,
-          maxTokens: 250,
-          timeoutMs: 20_000,
-        });
+          },
+          { role: "user", content: `Transcript of spoken voice message:\n\n"${transcript}"` },
+        ]);
 
         const match = content.match(/\{[\s\S]*\}/);
         const jsonStr = match ? match[0] : content;

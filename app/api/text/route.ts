@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { callLLM } from "../../../lib/llm";
+import { textAnalysisLLM } from "../../../lib/llm";
 
 export async function POST(request: Request) {
   try {
@@ -49,15 +49,10 @@ CRITICAL:
 - If the user shares something concerning, acknowledge it directly`;
 
     try {
-      const content = await callLLM({
-        messages: [
-          { role: "system", content: systemPrompt },
-          { role: "user", content: text },
-        ],
-        temperature: 0.7,
-        maxTokens: 600,
-        timeoutMs: 30_000,
-      });
+      const content = await textAnalysisLLM([
+        { role: "system", content: systemPrompt },
+        { role: "user", content: text },
+      ]);
 
       const match = content.match(/\{[\s\S]*\}/);
       const jsonStr = match ? match[0] : content;

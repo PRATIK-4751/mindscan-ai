@@ -1,5 +1,3 @@
-import type { NextResponse } from "next/server";
-
 type ChatMessage = {
   role: "system" | "user" | "assistant";
   content: string;
@@ -10,23 +8,69 @@ interface LLMOptions {
   temperature?: number;
   maxTokens?: number;
   timeoutMs?: number;
+  feature?: "chat" | "text" | "voice" | "general";
 }
 
-/**
- * Shared NVIDIA NIM API caller (OpenAI-compatible).
- * Falls back to lexicon-based analysis if the API is unavailable.
- */
-export async function callLLM(options: LLMOptions): Promise<string> {
-  const apiKey = (process.env.NVIDIA_API_KEY || process.env.OLLAMA_CLOUD_API_KEY)?.trim();
-  const apiUrl = (process.env.NVIDIA_API_URL || "https://integrate.api.nvidia.com/v1/chat/completions").trim();
-  const model = (process.env.NVIDIA_MODEL || "meta/llama-3.1-70b-instruct").trim();
+// ─── Model Registry ──────────────────────────────────────────────────────────
+// Each feature gets a primary model + fallback chain. Distributes load across
+// different providers so no single model handles everything.
 
-  if (!apiKey) {
-    throw new Error("No LLM API key configured");
-  }
+const MODEL_REGISTRY = {
+  chat: {
+    // Conversational chat — needs warmth, speed, good follow-up
+    primary: "meta/llama-4-maverick-17b-128e-instruct",
+    fallbacks: [
+      "meta/llama-3.3-70b-instruct",
+      "deepseek-ai/deepseek-v4-flash",
+      "mistralai/mistral-large-2-instruct",
+    ],
+  },
+  text: {
+    // Structured text analysis — needs instruction-following, JSON output
+    primary: "nvidia/llama-3.1-nemotron-70b-instruct",
+    fallbacks: [
+      "meta/llama-3.1-70b-instruct",
+      "deepseek-ai/deepseek-v4-pro",
+      "google/gemma-3-12b-it",
+    ],
+  },
+  voice: {
+    // Voice transcript analysis — needs speed, basic emotion detection
+    primary: "meta/llama-3.1-8b-instruct",
+    fallbacks: [
+      "google/gemma-3-4b-it",
+      "meta/llama-3.2-3b-instruct",
+      "mistralai/mistral-7b-instruct-v0.3",
+    ],
+  },
+  general: {
+    // General purpose fallback
+    primary: "mistralai/mistral-large-2-instruct",
+    fallbacks: [
+      "meta/llama-3.1-70b-instruct",
+      "deepseek-ai/deepseek-v4-flash",
+    ],
+  },
+} as const;
+
+type Feature = keyof typeof MODEL_REGISTRY;
+
+// ─── Core LLM Caller ─────────────────────────────────────────────────────────
+
+async function callNvidiaAPI(
+  model: string,
+  messages: ChatMessage[],
+  temperature: number,
+  maxTokens: number,
+  timeoutMs: number
+): Promise<string> {
+  const apiKey = process.env.NVIDIA_API_KEY?.trim();
+  const apiUrl = process.env.NVIDIA_API_URL?.trim() || "https://integrate.api.nvidia.com/v1/chat/completions";
+
+  if (!apiKey) throw new Error("NVIDIA_API_KEY not configured");
 
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), options.timeoutMs ?? 30_000);
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
 
   try {
     const response = await fetch(apiUrl, {
@@ -38,9 +82,9 @@ export async function callLLM(options: LLMOptions): Promise<string> {
       body: JSON.stringify({
         model,
         stream: false,
-        messages: options.messages,
-        temperature: options.temperature ?? 0.7,
-        max_tokens: options.maxTokens ?? 1024,
+        messages,
+        temperature,
+        max_tokens: maxTokens,
       }),
       signal: controller.signal,
     });
@@ -48,8 +92,8 @@ export async function callLLM(options: LLMOptions): Promise<string> {
 
     if (!response.ok) {
       const text = await response.text();
-      console.error(`LLM API Error (${response.status}):`, text);
-      throw new Error(`LLM API returned ${response.status}`);
+      console.error(`NVIDIA API Error (${response.status}) [${model}]:`, text.slice(0, 200));
+      throw new Error(`NVIDIA API returned ${response.status} for model ${model}`);
     }
 
     const data = await response.json();
@@ -58,13 +102,63 @@ export async function callLLM(options: LLMOptions): Promise<string> {
       data?.message?.content ??
       data?.response;
 
-    if (!content) {
-      throw new Error("Empty LLM response");
-    }
-
+    if (!content) throw new Error("Empty response from NVIDIA API");
     return content;
   } catch (err) {
     clearTimeout(timer);
     throw err;
   }
+}
+
+// ─── Public API ──────────────────────────────────────────────────────────────
+
+export async function callLLM(options: LLMOptions): Promise<string> {
+  const feature: Feature = options.feature || "general";
+  const registry = MODEL_REGISTRY[feature];
+  const allModels = [registry.primary, ...registry.fallbacks];
+
+  let lastError: Error | null = null;
+
+  for (const model of allModels) {
+    try {
+      const result = await callNvidiaAPI(
+        model,
+        options.messages,
+        options.temperature ?? 0.7,
+        options.maxTokens ?? 1024,
+        options.timeoutMs ?? 30_000
+      );
+      console.log(`✓ LLM success [${feature}] → ${model}`);
+      return result;
+    } catch (err: any) {
+      console.warn(`✗ LLM failed [${feature}] → ${model}: ${err?.message}`);
+      lastError = err;
+      continue;
+    }
+  }
+
+  throw lastError || new Error(`All models failed for feature: ${feature}`);
+}
+
+// ─── Convenience Wrappers ────────────────────────────────────────────────────
+
+export async function chatLLM(
+  messages: Array<{ role: string; content: string }>,
+  systemPrompt?: string
+): Promise<string> {
+  const allMessages: ChatMessage[] = [
+    ...(systemPrompt ? [{ role: "system" as const, content: systemPrompt }] : []),
+    ...messages.map((m) => ({ role: m.role as "system" | "user" | "assistant", content: m.content })),
+  ];
+  return callLLM({ messages: allMessages, feature: "chat", temperature: 0.7, maxTokens: 1024, timeoutMs: 23_000 });
+}
+
+export async function textAnalysisLLM(messages: Array<{ role: string; content: string }>): Promise<string> {
+  const typed: ChatMessage[] = messages.map((m) => ({ role: m.role as "system" | "user" | "assistant", content: m.content }));
+  return callLLM({ messages: typed, feature: "text", temperature: 0.3, maxTokens: 800, timeoutMs: 30_000 });
+}
+
+export async function voiceAnalysisLLM(messages: Array<{ role: string; content: string }>): Promise<string> {
+  const typed: ChatMessage[] = messages.map((m) => ({ role: m.role as "system" | "user" | "assistant", content: m.content }));
+  return callLLM({ messages: typed, feature: "voice", temperature: 0.3, maxTokens: 250, timeoutMs: 20_000 });
 }
