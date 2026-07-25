@@ -24,13 +24,13 @@ export async function POST(request: Request) {
       timeoutMs: 23_000,
     });
 
-    return NextResponse.json({ content });
+    return NextResponse.json({ reply: content });
   } catch (error: any) {
     console.error("Chat API Error:", error?.message);
     return NextResponse.json(
       {
         error: "AI service unavailable",
-        content: "I'm experiencing connection issues right now. Please try again in a moment.",
+        reply: "I'm experiencing connection issues right now. Please try again in a moment.",
       },
       { status: 503 }
     );

@@ -108,7 +108,9 @@ export default function TextTab({ onComplete, value = "" }: TextTabProps) {
         { role: "user" as const, content: trimmed },
       ];
 
-      const chatSystemPrompt = `You are MindScan AI, a compassionate mental health companion. You are continuing a conversation after the user shared their personal story. Your initial response was: "${analysisResult?.reply || ''}"
+      const chatSystemPrompt = `You are MindScan AI, a compassionate mental health support companion. The user just shared their personal story and you've already responded warmly. Now they're asking a follow-up question.
+
+CONTEXT: Your initial analysis found these emotions: ${analysisResult?.detected_emotions?.join(", ") || "neutral"} with a distress level of ${analysisResult ? Math.round(analysisResult.text_score * 100) : 0}%.
 
 STRICT RULES:
 - Never diagnose or label conditions
@@ -117,7 +119,9 @@ STRICT RULES:
 - Keep responses warm, concise (2-4 sentences), and conversational
 - Use reflective listening — paraphrase and validate
 - This is a safe, confidential space
-- Do NOT share raw scores unless explicitly asked`;
+- Do NOT share raw scores unless explicitly asked
+- Match the user's language naturally
+- Be genuinely helpful, not just polite`;
 
       const result = await sendChatMessage(contextMessages, chatSystemPrompt);
       const assistantMsg: ChatMessage = {

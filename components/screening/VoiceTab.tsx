@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import WaveSurfer from "wavesurfer.js";
 import LoadingSpinner from "../shared/LoadingSpinner";
-import { analyzeVoice } from "../../lib/api";
+import { analyzeVoice, analyzeText } from "../../lib/api";
 
 export interface VoiceTabResult {
   voice_score: number;
@@ -67,18 +67,42 @@ export default function VoiceTab({ onComplete }: VoiceTabProps) {
     setError(null);
     try {
       const file = new File([blob], "voice.webm", { type: blob.type || "audio/webm" });
-      // Use refs to get latest values (avoids stale closure)
       const finalTranscript = transcriptRef.current;
       const finalDuration = Math.min(recordingTimeRef.current || 1, 30);
-      const result = await analyzeVoice(file, finalTranscript);
-      setVoiceScore(result.voice_score);
-      setEmotion(result.detected_voice_emotion);
+
+      // Analyze voice characteristics (audio features)
+      const voiceResult = await analyzeVoice(file, finalTranscript);
+      setVoiceScore(voiceResult.voice_score);
+      setEmotion(voiceResult.detected_voice_emotion);
+
+      // Also analyze transcript content for emotional depth via text analysis
+      let textScore = 0;
+      let detectedEmotions: string[] = [];
+      let textSummary = "";
+      if (finalTranscript && finalTranscript.trim().length > 10) {
+        try {
+          const textResult = await analyzeText(finalTranscript);
+          textScore = textResult.text_score;
+          detectedEmotions = textResult.detected_emotions || [];
+          textSummary = textResult.summary || "";
+        } catch {
+          // Text analysis failed — continue with voice-only score
+        }
+      }
+
+      // Combine scores: weight voice 40%, text content 60% (text is richer signal)
+      const combinedScore = finalTranscript && finalTranscript.trim().length > 10
+        ? Math.min(Math.max(voiceResult.voice_score * 0.4 + textScore * 0.6, 0), 1)
+        : voiceResult.voice_score;
+
       onComplete({
-        voice_score: result.voice_score,
-        detected_voice_emotion: result.detected_voice_emotion,
+        voice_score: combinedScore,
+        detected_voice_emotion: detectedEmotions.length > 0
+          ? detectedEmotions.join(", ")
+          : voiceResult.detected_voice_emotion,
         audioUrl: url,
         duration: finalDuration,
-        transcript: finalTranscript
+        transcript: finalTranscript,
       });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unable to analyze voice.");
