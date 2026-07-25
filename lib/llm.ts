@@ -27,20 +27,20 @@ const MODEL_REGISTRY = {
   },
   text: {
     // Structured text analysis — needs instruction-following, JSON output
-    primary: "nvidia/llama-3.1-nemotron-70b-instruct",
+    primary: "meta/llama-3.3-70b-instruct",
     fallbacks: [
+      "deepseek-ai/deepseek-v4-flash",
       "meta/llama-3.1-70b-instruct",
-      "deepseek-ai/deepseek-v4-pro",
-      "google/gemma-3-12b-it",
+      "nvidia/llama-3.1-nemotron-70b-instruct",
     ],
   },
   voice: {
     // Voice transcript analysis — needs speed, basic emotion detection
-    primary: "meta/llama-3.1-8b-instruct",
+    primary: "deepseek-ai/deepseek-v4-flash",
     fallbacks: [
+      "meta/llama-3.1-8b-instruct",
       "google/gemma-3-4b-it",
       "meta/llama-3.2-3b-instruct",
-      "mistralai/mistral-7b-instruct-v0.3",
     ],
   },
   general: {
@@ -70,7 +70,7 @@ async function callNvidiaAPI(
   if (!apiKey) throw new Error("NVIDIA_API_KEY not configured");
 
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  const timer = setTimeout(() => controller.abort(), Math.min(timeoutMs, 25_000));
 
   try {
     const response = await fetch(apiUrl, {
@@ -150,15 +150,15 @@ export async function chatLLM(
     ...(systemPrompt ? [{ role: "system" as const, content: systemPrompt }] : []),
     ...messages.map((m) => ({ role: m.role as "system" | "user" | "assistant", content: m.content })),
   ];
-  return callLLM({ messages: allMessages, feature: "chat", temperature: 0.7, maxTokens: 1024, timeoutMs: 23_000 });
+  return callLLM({ messages: allMessages, feature: "chat", temperature: 0.7, maxTokens: 1024, timeoutMs: 28_000 });
 }
 
 export async function textAnalysisLLM(messages: Array<{ role: string; content: string }>): Promise<string> {
   const typed: ChatMessage[] = messages.map((m) => ({ role: m.role as "system" | "user" | "assistant", content: m.content }));
-  return callLLM({ messages: typed, feature: "text", temperature: 0.3, maxTokens: 800, timeoutMs: 30_000 });
+  return callLLM({ messages: typed, feature: "text", temperature: 0.3, maxTokens: 800, timeoutMs: 28_000 });
 }
 
 export async function voiceAnalysisLLM(messages: Array<{ role: string; content: string }>): Promise<string> {
   const typed: ChatMessage[] = messages.map((m) => ({ role: m.role as "system" | "user" | "assistant", content: m.content }));
-  return callLLM({ messages: typed, feature: "voice", temperature: 0.3, maxTokens: 250, timeoutMs: 20_000 });
+  return callLLM({ messages: typed, feature: "voice", temperature: 0.3, maxTokens: 250, timeoutMs: 28_000 });
 }
