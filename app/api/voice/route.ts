@@ -15,34 +15,23 @@ export async function POST(request: Request) {
         const content = await voiceAnalysisLLM([
           {
             role: "system",
-            content: `You are a psychological voice analyst evaluating a user's spoken words for emotional content. The user has recorded a voice message as part of a mental health screening.
+            content: `Analyze this voice transcript for emotional content. Return ONLY valid JSON (no markdown, no code fences):
+{"voice_score":0.5,"detected_voice_emotion":"Sadness","emotional_indicators":["tired","isolated"],"severity_notes":"Brief observation"}
 
-Analyze the TRANSCRIPT of what they said. Consider:
-- Emotional tone of their words
-- Underlying feelings (sadness, anxiety, anger, hopelessness, isolation, fatigue)
-- Severity of distress (0.0 = calm/happy, 1.0 = severely distressed)
-- Whether they express crisis signals (self-harm, suicide, wanting to die)
-
-Return ONLY a valid JSON object:
-{
-  "voice_score": 0.5,
-  "detected_voice_emotion": "Sadness",
-  "emotional_indicators": ["tired", "isolated"],
-  "severity_notes": "Brief clinical observation about the emotional state"
-}
-
-voice_score: 0.0-0.2 (minimal distress), 0.2-0.4 (mild), 0.4-0.6 (moderate), 0.6-0.8 (significant), 0.8-1.0 (severe/crisis)
-detected_voice_emotion: Primary emotion as a single word (e.g., Sadness, Anxiety, Frustration, Hopelessness, Fear, Numbness, Neutral)
-emotional_indicators: 2-4 specific words/phrases that reveal their emotional state
-severity_notes: One sentence about what you observe in their words
-
-CRITICAL: If crisis language is detected (suicide, self-harm, wanting to die), set voice_score to at least 0.8 and include "Crisis" in detected_voice_emotion.`,
+voice_score: 0.0-1.0 (0=calm, 1=severe distress). detected_voice_emotion: single word (Sadness/Anxiety/Frustration/Hopelessness/Fear/Numbness/Neutral). emotional_indicators: 2-4 words from the text. severity_notes: one sentence. If crisis language (suicide/self-harm), set score >= 0.8 and emotion to "Crisis".`,
           },
-          { role: "user", content: `Transcript of spoken voice message:\n\n"${transcript}"` },
+          { role: "user", content: transcript },
         ]);
 
-        const match = content.match(/\{[\s\S]*\}/);
-        const jsonStr = match ? match[0] : content;
+        // Extract JSON — handle code fences or bare JSON
+        let jsonStr = content;
+        const fenceMatch = content.match(/```(?:json)?\s*([\s\S]*?)```/);
+        if (fenceMatch) {
+          jsonStr = fenceMatch[1];
+        } else {
+          const braceMatch = content.match(/\{[\s\S]*\}/);
+          if (braceMatch) jsonStr = braceMatch[0];
+        }
 
         try {
           const parsed = JSON.parse(jsonStr);

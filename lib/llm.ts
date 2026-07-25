@@ -160,5 +160,5 @@ export async function textAnalysisLLM(messages: Array<{ role: string; content: s
 
 export async function voiceAnalysisLLM(messages: Array<{ role: string; content: string }>): Promise<string> {
   const typed: ChatMessage[] = messages.map((m) => ({ role: m.role as "system" | "user" | "assistant", content: m.content }));
-  return callLLM({ messages: typed, feature: "voice", temperature: 0.3, maxTokens: 250, timeoutMs: 28_000 });
+  return callLLM({ messages: typed, feature: "voice", temperature: 0.3, maxTokens: 400, timeoutMs: 28_000 });
 }

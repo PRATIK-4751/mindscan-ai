@@ -54,8 +54,15 @@ CRITICAL:
         { role: "user", content: text },
       ]);
 
-      const match = content.match(/\{[\s\S]*\}/);
-      const jsonStr = match ? match[0] : content;
+      // Extract JSON — handle code fences or bare JSON
+      let jsonStr = content;
+      const fenceMatch = content.match(/```(?:json)?\s*([\s\S]*?)```/);
+      if (fenceMatch) {
+        jsonStr = fenceMatch[1];
+      } else {
+        const braceMatch = content.match(/\{[\s\S]*\}/);
+        if (braceMatch) jsonStr = braceMatch[0];
+      }
 
       try {
         const parsed = JSON.parse(jsonStr);
