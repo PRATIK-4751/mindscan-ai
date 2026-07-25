@@ -5,6 +5,7 @@ import Link from "next/link";
 import Particles, { initParticlesEngine } from "@tsparticles/react";
 import type { ISourceOptions } from "@tsparticles/engine";
 import { loadFull } from "tsparticles";
+import AsciiReveal from "../AsciiReveal";
 
 export default function Hero() {
   const [ready, setReady] = useState(false);
@@ -33,9 +34,27 @@ export default function Hero() {
 
   return (
     <section className="relative min-h-[100svh] overflow-hidden">
+      {/* Original background image */}
       <div className="absolute inset-0 bg-[url('/eye.jpg')] bg-cover bg-center" />
-      <div className="absolute inset-0 bg-black/65" />
+
+      {/* ASCII Reveal layer — covers the whole hero, hover reveals the photo */}
+      <div className="absolute inset-0">
+        <AsciiReveal
+          image="/eye.jpg"
+          columns={140}
+          contrast={110}
+          colorMode="mono"
+          inkColor="#e8dcc8"
+          reveal={true}
+          revealOptions={{ size: 80, softness: 16 }}
+          style={{ width: "100%", height: "100%" }}
+        />
+      </div>
+
+      {/* Particles */}
       <div className="absolute inset-0">{ready && <Particles id="hero-stars" options={options} className="h-full w-full" />}</div>
+
+      {/* Text content */}
       <div className="relative z-10 mx-auto flex min-h-[100svh] w-full max-w-7xl flex-col items-center justify-center px-6 py-24">
         <h1 className="font-display text-4xl uppercase tracking-[0.25em] text-[var(--cream)] sm:text-5xl sm:tracking-[0.35em] md:text-7xl md:tracking-[0.55em] lg:text-9xl">
           MINDSCAN
