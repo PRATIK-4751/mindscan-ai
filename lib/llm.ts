@@ -36,11 +36,11 @@ const MODEL_REGISTRY = {
   },
   voice: {
     // Voice transcript analysis — needs speed, basic emotion detection
-    primary: "deepseek-ai/deepseek-v4-flash",
+    primary: "meta/llama-3.2-3b-instruct",
     fallbacks: [
-      "meta/llama-3.1-8b-instruct",
       "google/gemma-3-4b-it",
-      "meta/llama-3.2-3b-instruct",
+      "meta/llama-3.1-8b-instruct",
+      "deepseek-ai/deepseek-v4-flash",
     ],
   },
   general: {
