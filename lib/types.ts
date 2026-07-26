@@ -3,6 +3,17 @@ export interface LimeWord {
   score: number;
 }
 
+export interface ShapValue {
+  feature: string;
+  display_name?: string;
+  value: number;
+  shap_value: number;
+  contribution: number;
+  category?: string;
+  is_depression_indicator?: boolean;
+  depression_note?: string;
+}
+
 export type RiskLevel = "Low Risk" | "Medium Risk" | "High Risk" | "High Risk (Silent Distress)";
 
 export interface AnalysisResult {

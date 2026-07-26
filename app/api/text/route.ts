@@ -36,51 +36,91 @@ CRITICAL:
 - The "reply" field is what the user will see — make it warm and human
 - The JSON must be parseable — no markdown, no extra text outside the JSON`;
 
+const ML_SERVICE_URL = process.env.ML_SERVICE_URL || "http://localhost:8001";
+
+async function fetchShapExplanation(text: string) {
+  try {
+    const res = await fetch(`${ML_SERVICE_URL}/explain/text`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ text }),
+      signal: AbortSignal.timeout(15000),
+    });
+    if (!res.ok) return null;
+    return await res.json();
+  } catch {
+    return null;
+  }
+}
+
 export async function POST(request: Request) {
   try {
     const { text } = await request.json();
     if (!text) return NextResponse.json({ error: "No text provided" }, { status: 400 });
 
-    try {
-      const content = await textAnalysisLLM([
+    // Run LLM analysis and SHAP explanation in parallel
+    const [llmResult, shapResult] = await Promise.allSettled([
+      textAnalysisLLM([
         { role: "system", content: SYSTEM_PROMPT },
         { role: "user", content: String(text).slice(0, 3000) },
-      ]);
+      ]),
+      fetchShapExplanation(text),
+    ]);
 
-      let jsonStr = content;
-      const fenceMatch = content.match(/\`\`\`(?:json)?\s*([\s\S]*?)\`\`\`/);
-      if (fenceMatch) {
-        jsonStr = fenceMatch[1];
-      } else {
-        const braceMatch = content.match(/\{[\s\S]*\}/);
-        if (braceMatch) jsonStr = braceMatch[0];
-      }
-
+    // Parse LLM result
+    let llmData: any = null;
+    if (llmResult.status === "fulfilled") {
       try {
-        const parsed = JSON.parse(jsonStr);
-        return NextResponse.json({
-          reply: parsed.reply || "Thank you for sharing. I hear you.",
-          text_score: Math.min(Math.max(parsed.text_score || 0, 0), 1),
-          lime_words: Array.isArray(parsed.lime_words)
-            ? parsed.lime_words.map((w: any) => ({
-                word: String(w.word || ""),
-                score: Math.min(Math.max(Number(w.score) || 0, 0), 1),
-              }))
-            : [],
-          detected_emotions: Array.isArray(parsed.detected_emotions) ? parsed.detected_emotions : [],
-          summary: parsed.summary || "",
-        });
+        let jsonStr = llmResult.value;
+        const fenceMatch = jsonStr.match(/```(?:json)?\s*([\s\S]*?)```/);
+        if (fenceMatch) {
+          jsonStr = fenceMatch[1];
+        } else {
+          const braceMatch = jsonStr.match(/\{[\s\S]*\}/);
+          if (braceMatch) jsonStr = braceMatch[0];
+        }
+        llmData = JSON.parse(jsonStr);
       } catch {
-        const lexicon = fallbackLexicon(text);
-        return NextResponse.json({
-          reply: content.trim() || "Thank you for sharing that with me.",
-          ...lexicon,
-          summary: "Analysis based on text patterns.",
-        });
+        llmData = null;
       }
-    } catch {
-      return fallbackAnalysis(text);
     }
+
+    // Use fallback if LLM failed
+    if (!llmData) {
+      const lexicon = fallbackLexicon(text);
+      return NextResponse.json({
+        reply: "Thank you for sharing your story with me. I can see that you're going through something meaningful. Your feelings are valid, and it takes courage to express them.",
+        ...lexicon,
+        shap_values: shapResult.status === "fulfilled" && shapResult.value
+          ? shapResult.value.shap_values
+          : [],
+        shap_method: shapResult.status === "fulfilled" && shapResult.value
+          ? shapResult.value.method
+          : "unavailable",
+      });
+    }
+
+    // Merge LLM lime_words with SHAP values
+    const shapValues = shapResult.status === "fulfilled" && shapResult.value
+      ? shapResult.value.shap_values
+      : [];
+
+    return NextResponse.json({
+      reply: llmData.reply || "Thank you for sharing. I hear you.",
+      text_score: Math.min(Math.max(llmData.text_score || 0, 0), 1),
+      lime_words: Array.isArray(llmData.lime_words)
+        ? llmData.lime_words.map((w: any) => ({
+            word: String(w.word || ""),
+            score: Math.min(Math.max(Number(w.score) || 0, 0), 1),
+          }))
+        : [],
+      shap_values: shapValues,
+      shap_method: shapResult.status === "fulfilled" && shapResult.value
+        ? shapResult.value.method
+        : "unavailable",
+      detected_emotions: Array.isArray(llmData.detected_emotions) ? llmData.detected_emotions : [],
+      summary: llmData.summary || "",
+    });
   } catch (err: any) {
     return fallbackAnalysis("I'm here to listen.");
   }
@@ -91,6 +131,8 @@ function fallbackAnalysis(text: string) {
   return NextResponse.json({
     reply: "Thank you for sharing your story with me. I can see that you're going through something meaningful. Your feelings are valid, and it takes courage to express them.",
     ...lexicon,
+    shap_values: [],
+    shap_method: "unavailable",
   });
 }
 
