@@ -6,7 +6,7 @@ export async function POST(request: Request) {
     if (!Array.isArray(answers)) return NextResponse.json({ error: "Invalid answers" }, { status: 400 });
 
     const total = answers.reduce((a, b) => a + b, 0);
-    const score = total / 27.0; // Max PHQ-9 is 27
+    const score = total / 27.0;
 
     let severity = "Minimal";
     if (total >= 20) severity = "Severe";

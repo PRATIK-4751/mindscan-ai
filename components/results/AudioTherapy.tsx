@@ -99,7 +99,7 @@ export default function AudioTherapy({ riskLevel }: { riskLevel: string }) {
             if (cancelled) return;
             retryCount.current += 1;
             if (retryCount.current <= MAX_RETRIES) {
-              // Retry the same track once
+              
               setTimeout(() => {
                 if (!cancelled && ytPlayer.current?.loadVideoById) {
                   ytPlayer.current.loadVideoById(track.id);
@@ -120,7 +120,7 @@ export default function AudioTherapy({ riskLevel }: { riskLevel: string }) {
     return () => {
       cancelled = true;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    
   }, [idx]);
 
   useEffect(() => {
@@ -150,8 +150,6 @@ export default function AudioTherapy({ riskLevel }: { riskLevel: string }) {
 
     return () => { if (timerRef.current) clearInterval(timerRef.current); };
   }, [playing, ready, seeking]);
-
-
 
   const pctFromEvent = (e: React.MouseEvent<HTMLDivElement>) => {
     if (!barRef.current) return 0;

@@ -60,7 +60,7 @@ export default function PHQ9Tab({ onComplete, textContext }: PHQ9TabProps) {
           setQuestions(data.questions);
         }
       } catch {
-        // Keep default questions on error
+        
       } finally {
         setLoadingQuestions(false);
       }

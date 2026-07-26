@@ -11,13 +11,8 @@ interface LLMOptions {
   feature?: "chat" | "text" | "voice" | "general";
 }
 
-// ─── Model Registry ──────────────────────────────────────────────────────────
-// Each feature gets a primary model + fallback chain. Distributes load across
-// different providers so no single model handles everything.
-
 const MODEL_REGISTRY = {
   chat: {
-    // Conversational chat — needs warmth, speed, good follow-up
     primary: "meta/llama-4-maverick-17b-128e-instruct",
     fallbacks: [
       "meta/llama-3.3-70b-instruct",
@@ -26,7 +21,6 @@ const MODEL_REGISTRY = {
     ],
   },
   text: {
-    // Structured text analysis — needs instruction-following, JSON output
     primary: "meta/llama-3.3-70b-instruct",
     fallbacks: [
       "deepseek-ai/deepseek-v4-flash",
@@ -35,7 +29,6 @@ const MODEL_REGISTRY = {
     ],
   },
   voice: {
-    // Voice transcript analysis — needs speed, basic emotion detection
     primary: "meta/llama-3.2-3b-instruct",
     fallbacks: [
       "google/gemma-3-4b-it",
@@ -44,7 +37,6 @@ const MODEL_REGISTRY = {
     ],
   },
   general: {
-    // General purpose fallback
     primary: "mistralai/mistral-large-2-instruct",
     fallbacks: [
       "meta/llama-3.1-70b-instruct",
@@ -54,8 +46,6 @@ const MODEL_REGISTRY = {
 } as const;
 
 type Feature = keyof typeof MODEL_REGISTRY;
-
-// ─── Core LLM Caller ─────────────────────────────────────────────────────────
 
 async function callNvidiaAPI(
   model: string,
@@ -110,8 +100,6 @@ async function callNvidiaAPI(
   }
 }
 
-// ─── Public API ──────────────────────────────────────────────────────────────
-
 export async function callLLM(options: LLMOptions): Promise<string> {
   const feature: Feature = options.feature || "general";
   const registry = MODEL_REGISTRY[feature];
@@ -139,8 +127,6 @@ export async function callLLM(options: LLMOptions): Promise<string> {
 
   throw lastError || new Error(`All models failed for feature: ${feature}`);
 }
-
-// ─── Convenience Wrappers ────────────────────────────────────────────────────
 
 export async function chatLLM(
   messages: Array<{ role: string; content: string }>,

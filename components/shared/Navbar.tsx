@@ -20,17 +20,14 @@ export default function Navbar() {
   const pathname                = usePathname();
   const { user, signOut }       = useAuth();
 
-  // Handle scroll state for glass effect
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 20);
     window.addEventListener("scroll", onScroll, { passive: true });
     return () => window.removeEventListener("scroll", onScroll);
   }, []);
 
-  // Close mobile menu on route change
   useEffect(() => { setOpen(false); }, [pathname]);
 
-  // Prevent scrolling when mobile menu is open
   useEffect(() => {
     if (open) {
       document.body.style.overflow = "hidden";
@@ -42,16 +39,15 @@ export default function Navbar() {
 
   return (
     <>
-      {/* ── FLOATING HEADER ── */}
+      
       <header className="fixed top-0 left-0 right-0 z-50 pointer-events-none pt-6 px-6 sm:px-8">
         <div className="mx-auto flex w-full max-w-7xl items-start justify-between">
           
-          {/* ── BRAND (Top Left Floating) ── */}
           <Link 
             href="/" 
             className="pointer-events-auto group flex items-center gap-4 select-none"
           >
-            {/* Eye icon frame */}
+            
             <div
               className="relative flex items-center justify-center w-[3.25rem] h-[3.25rem] shrink-0 overflow-hidden transition-all duration-500"
               style={{ 
@@ -69,12 +65,11 @@ export default function Navbar() {
                 />
                 <circle cx="12" cy="12" r="3" stroke="#F5A623" strokeWidth="1.5" />
               </svg>
-              {/* Animated scan line inside icon */}
+              
               <div className="absolute inset-x-0 h-px animate-scan-line pointer-events-none"
                 style={{ background: "rgba(245,166,35,0.7)", top: "50%" }} />
             </div>
 
-            {/* Word mark */}
             <div className="hidden sm:flex flex-col leading-none justify-center">
               <span
                 className="font-display tracking-[0.42em]"
@@ -103,7 +98,6 @@ export default function Navbar() {
             </div>
           </Link>
 
-          {/* ── DESKTOP NAV (Top Right Floating Pill) ── */}
           <nav 
             className="pointer-events-auto hidden lg:flex items-center gap-1 p-1.5 transition-all duration-500"
             style={{
@@ -111,7 +105,7 @@ export default function Navbar() {
               backdropFilter: scrolled ? "blur(16px) saturate(180%)" : "none",
               border: scrolled ? "1px solid rgba(232,220,200,0.12)" : "1px solid transparent",
               boxShadow: scrolled ? "0 8px 32px rgba(0,0,0,0.4)" : "none",
-              borderRadius: "100px", // Perfect pill
+              borderRadius: "100px", 
             }}
           >
             {links.map((link) => {
@@ -137,7 +131,7 @@ export default function Navbar() {
                   >
                     {link.label}
                   </span>
-                  {/* Active glow */}
+                  
                   {active && (
                     <span 
                       className="absolute inset-0 rounded-full" 
@@ -170,7 +164,6 @@ export default function Navbar() {
             </div>
           </nav>
 
-          {/* ── MOBILE TOGGLE ── */}
           <button
             onClick={() => setOpen((p) => !p)}
             className="pointer-events-auto lg:hidden flex items-center justify-center w-12 h-12 transition-all duration-500 rounded-full"
@@ -186,7 +179,6 @@ export default function Navbar() {
         </div>
       </header>
 
-      {/* ── MOBILE FULLSCREEN MENU ── */}
       <div 
         className={`fixed inset-0 z-40 transition-all duration-700 ease-[cubic-bezier(0.22,1,0.36,1)] ${
           open 

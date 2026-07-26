@@ -62,7 +62,6 @@ export default function ScoreBreakdown({ scores, finalScore, riskLevel }: ScoreB
         })}
       </div>
 
-      {/* Combined score bar */}
       <div className="mt-6 border-t border-white/10 pt-5">
         <div className="flex justify-between text-[10px] uppercase tracking-[0.3em] text-[var(--text-muted)] mb-2">
           <span>Combined Risk</span>

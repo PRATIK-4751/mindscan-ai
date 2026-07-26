@@ -114,7 +114,6 @@ export default function ResultsPage() {
       <div className="fixed inset-0 -z-10 bg-black/90" />
       <div id="results-report" className="mx-auto w-full max-w-6xl px-6 pt-32 pb-16">
 
-        {/* No data warning */}
         {!hasData && (
           <div className="mb-8 border border-[var(--amber-gold)]/30 bg-[var(--amber-gold)]/5 p-6 text-center">
             <div className="font-display text-lg uppercase tracking-[0.3em] text-[var(--amber-gold)]">
@@ -132,7 +131,6 @@ export default function ResultsPage() {
           </div>
         )}
 
-        {/* Risk Gauge + Score Breakdown */}
         <div className="grid gap-10 lg:grid-cols-[1.1fr_1fr]">
           <RiskGauge score={result.final_score * 100} riskLevel={result.risk_level} />
           <ScoreBreakdown
@@ -142,7 +140,6 @@ export default function ResultsPage() {
           />
         </div>
 
-        {/* LIME + Emotions */}
         <div className="mt-10 grid gap-8 lg:grid-cols-[1.2fr_1fr]">
           <div className="card-shell p-6">
             <LIMEChart data={limeWords} />
@@ -171,7 +168,7 @@ export default function ResultsPage() {
           </div>
           <div className="space-y-6">
             <EmotionSummary faceEmotion={faceEmotion} voiceEmotion={voiceEmotion} />
-            {/* Face model detail */}
+
             {faceEmotions && (
               <div className="bg-[#0a0a1a] border border-[#333] rounded-lg p-4">
                 <div className="font-mono text-[10px] uppercase tracking-[0.3em] text-[var(--cream)]/60 mb-3">
@@ -202,7 +199,7 @@ export default function ResultsPage() {
                 </div>
               </div>
             )}
-            {/* Google Vision labels */}
+
             {faceLabels.length > 0 && (
               <div className="bg-[#0a0a1a] border border-[#333] rounded-lg p-4">
                 <div className="font-mono text-[10px] uppercase tracking-[0.3em] text-[var(--cream)]/60 mb-2">
@@ -223,7 +220,6 @@ export default function ResultsPage() {
           </div>
         </div>
 
-        {/* PHQ-9 + Recommendations */}
         <div className="mt-12">
           {phq9Severity !== "Minimal" && (
             <div className="mb-6 border border-[var(--rust)]/30 bg-[var(--rust)]/5 p-4">
@@ -241,13 +237,11 @@ export default function ResultsPage() {
           </div>
         </div>
 
-        {/* Chat + History */}
         <div className="mt-10 grid gap-8 lg:grid-cols-[1.1fr_0.9fr]">
           <InsightChat />
           <SessionHistory />
         </div>
 
-        {/* Footer */}
         <div className="mt-10 flex flex-wrap items-center justify-between gap-4 border-t border-white/10 pt-6">
           <PDFReport targetId="results-report" />
           <div className="text-right">

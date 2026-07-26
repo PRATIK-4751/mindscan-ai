@@ -4,10 +4,12 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Webcam from "react-webcam";
 import LoadingSpinner from "../shared/LoadingSpinner";
 import { analyzeFace } from "../../lib/api";
-import { useFaceDetection, FaceDetectionResult } from "../../hooks/useFaceDetection";
+import { useFaceDetection } from "../../hooks/useFaceDetection";
 import {
   Camera, CameraOff, Upload, Square, Play, AlertTriangle,
-  Activity, ScanEye, Crosshair, Radio, Zap, Eye, MonitorSpeaker,
+  Activity, ScanEye, Heart, Brain, Sparkles, Zap,
+  ChevronRight, Shield, Eye, Smile, Frown, Meh,
+  Angry, Scan, Radio, CheckCircle2,
 } from "lucide-react";
 
 export interface FaceTabResult {
@@ -24,24 +26,14 @@ interface FaceTabProps {
   onComplete: (data: FaceTabResult) => void;
 }
 
-const EMOTION_COLORS: Record<string, string> = {
-  Angry: "#ff3333",
-  Disgust: "#ff8c00",
-  Fear: "#ffd700",
-  Happy: "#00ff88",
-  Neutral: "#00ccff",
-  Sad: "#6666ff",
-  Surprise: "#ff33ff",
-};
-
-const EMOTION_ICONS: Record<string, React.ReactNode> = {
-  Angry: <Zap size={14} />,
-  Disgust: <AlertTriangle size={14} />,
-  Fear: <Eye size={14} />,
-  Happy: <Activity size={14} />,
-  Neutral: <ScanEye size={14} />,
-  Sad: <MonitorSpeaker size={14} />,
-  Surprise: <Radio size={14} />,
+const EMOTION_CONFIG: Record<string, { color: string; gradient: string; icon: React.ReactNode; label: string }> = {
+  Happy:     { color: "#10b981", gradient: "from-emerald-400 to-emerald-600", icon: <Smile size={20} />, label: "Joyful" },
+  Sad:       { color: "#6366f1", gradient: "from-indigo-400 to-indigo-600", icon: <Frown size={20} />, label: "Sad" },
+  Neutral:   { color: "#64748b", gradient: "from-slate-400 to-slate-600", icon: <Meh size={20} />, label: "Calm" },
+  Angry:     { color: "#ef4444", gradient: "from-red-400 to-red-600", icon: <Angry size={20} />, label: "Tense" },
+  Fear:      { color: "#f59e0b", gradient: "from-amber-400 to-amber-600", icon: <Eye size={20} />, label: "Anxious" },
+  Surprise:  { color: "#8b5cf6", gradient: "from-violet-400 to-violet-600", icon: <Sparkles size={20} />, label: "Surprised" },
+  Disgust:   { color: "#84cc16", gradient: "from-lime-400 to-lime-600", icon: <AlertTriangle size={20} />, label: "Distressed" },
 };
 
 const dataUrlToFile = async (dataUrl: string, filename: string) => {
@@ -52,12 +44,11 @@ const dataUrlToFile = async (dataUrl: string, filename: string) => {
 
 export default function FaceTab({ onComplete }: FaceTabProps) {
   const webcamRef = useRef<Webcam>(null);
-  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
   const [imageUrl, setImageUrl] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [analyzing, setAnalyzing] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [faceScore, setFaceScore] = useState(0);
   const [emotion, setEmotion] = useState("Neutral");
   const [emotions, setEmotions] = useState<Record<string, number> | null>(null);
   const [dominantEmotion, setDominantEmotion] = useState<string | null>(null);
@@ -66,75 +57,198 @@ export default function FaceTab({ onComplete }: FaceTabProps) {
   const [recording, setRecording] = useState(false);
   const recIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const [recTime, setRecTime] = useState(0);
-  const [crtMode, setCrtMode] = useState<"green" | "blue" | "off">("green");
+  const [scanning, setScanning] = useState(false);
+  const [scanProgress, setScanProgress] = useState(0);
+  const [showResults, setShowResults] = useState(false);
+  const [liveBox, setLiveBox] = useState<{ x: number; y: number; width: number; height: number } | null>(null);
 
   const { modelsLoaded, loading: modelsLoading, error: modelsError, detect } = useFaceDetection();
 
-  // Store the webcam video element ref for face detection
-  useEffect(() => {
-    if (webcamRef.current) {
-      const video = webcamRef.current.video;
-      if (video) {
-        videoRef.current = video;
-      }
-    }
-  });
-
-  // Also try to get video ref after webcam mounts
-  const getVideoElement = useCallback(() => {
-    if (videoRef.current) return videoRef.current;
-    if (webcamRef.current?.video) {
-      videoRef.current = webcamRef.current.video;
-      return videoRef.current;
-    }
-    return null;
-  }, []);
-
   const secureReady = typeof window !== "undefined" && window.isSecureContext && !!navigator.mediaDevices;
 
-  const emotionBars = useMemo(() => {
-    if (emotions) {
-      return Object.entries(emotions)
-        .sort(([, a], [, b]) => (b as number) - (a as number))
-        .map(([name, value]) => ({
-          name,
-          value: value as number,
-          color: EMOTION_COLORS[name] || "#888",
-          icon: EMOTION_ICONS[name] || <ScanEye size={14} />,
-        }));
-    }
-    const conf = Math.min(Math.max(faceScore, 0), 1);
-    const emotionsList = ["Neutral", "Sad", "Anxious", "Tense", "Calm"];
-    const rest = emotionsList.length > 1 ? (1 - conf) / (emotionsList.length - 1) : 0;
-    return emotionsList.map((name) => ({
-      name,
-      value: name === emotion ? conf : rest,
-      color: name === emotion ? "#00ccff" : "#555",
-      icon: <ScanEye size={14} />,
-    }));
-  }, [emotion, faceScore, emotions]);
+  const currentEmotionConfig = EMOTION_CONFIG[dominantEmotion || emotion] || EMOTION_CONFIG.Neutral;
 
-  // Run face detection on a video element, then call the vision API for Google Vision labels
+  const drawOverlay = useCallback((emotions: Record<string, number> | null, dominant: string | null, box: { x: number; y: number; width: number; height: number } | null) => {
+    const canvas = canvasRef.current;
+    const video = webcamRef.current?.video;
+    if (!canvas || !video) return;
+
+    canvas.width = video.videoWidth || 640;
+    canvas.height = video.videoHeight || 480;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    let x, y, boxW, boxH, cx, cy;
+
+    if (box) {
+      x = box.x;
+      y = box.y;
+      boxW = box.width;
+      boxH = box.height;
+      cx = x + boxW / 2;
+      cy = y + boxH / 2;
+    } else {
+      cx = canvas.width / 2;
+      cy = canvas.height / 2;
+      boxW = canvas.width * 0.45;
+      boxH = canvas.height * 0.55;
+      x = cx - boxW / 2;
+      y = cy - boxH / 2;
+    }
+
+    const emotionColor = dominant ? (EMOTION_CONFIG[dominant]?.color || "#64748b") : "#64748b";
+
+    const cornerLen = 30;
+    ctx.strokeStyle = emotionColor;
+    ctx.lineWidth = 3;
+    ctx.shadowColor = emotionColor;
+    ctx.shadowBlur = 10;
+
+    ctx.beginPath();
+    ctx.moveTo(x, y + cornerLen);
+    ctx.lineTo(x, y);
+    ctx.lineTo(x + cornerLen, y);
+    ctx.stroke();
+
+    ctx.beginPath();
+    ctx.moveTo(x + boxW - cornerLen, y);
+    ctx.lineTo(x + boxW, y);
+    ctx.lineTo(x + boxW, y + cornerLen);
+    ctx.stroke();
+
+    ctx.beginPath();
+    ctx.moveTo(x, y + boxH - cornerLen);
+    ctx.lineTo(x, y + boxH);
+    ctx.lineTo(x + cornerLen, y + boxH);
+    ctx.stroke();
+
+    ctx.beginPath();
+    ctx.moveTo(x + boxW - cornerLen, y + boxH);
+    ctx.lineTo(x + boxW, y + boxH);
+    ctx.lineTo(x + boxW, y + boxH - cornerLen);
+    ctx.stroke();
+
+    ctx.shadowBlur = 0;
+
+    ctx.strokeStyle = `${emotionColor}60`;
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(cx - 15, cy);
+    ctx.lineTo(cx + 15, cy);
+    ctx.moveTo(cx, cy - 15);
+    ctx.lineTo(cx, cy + 15);
+    ctx.stroke();
+
+    if (dominant && emotions) {
+      const label = EMOTION_CONFIG[dominant]?.label || dominant;
+      const conf = emotions[dominant] ? Math.round(emotions[dominant] * 100) : 0;
+
+      ctx.font = "bold 16px 'JetBrains Mono', monospace";
+      ctx.fillStyle = emotionColor;
+      ctx.textAlign = "center";
+      ctx.shadowColor = emotionColor;
+      ctx.shadowBlur = 8;
+      ctx.fillText(`${label.toUpperCase()}  ${conf}%`, cx, y - 15);
+      ctx.shadowBlur = 0;
+    }
+
+    if (scanning) {
+      const scanY = (Date.now() % 3000) / 3000 * canvas.height;
+      const gradient = ctx.createLinearGradient(0, scanY - 30, 0, scanY + 30);
+      gradient.addColorStop(0, "transparent");
+      gradient.addColorStop(0.5, `${emotionColor}30`);
+      gradient.addColorStop(1, "transparent");
+      ctx.fillStyle = gradient;
+      ctx.fillRect(0, scanY - 30, canvas.width, 60);
+    }
+  }, [scanning]);
+
+  useEffect(() => {
+    let raf: number;
+    const animate = () => {
+      drawOverlay(emotions, dominantEmotion, liveBox);
+      raf = requestAnimationFrame(animate);
+    };
+    raf = requestAnimationFrame(animate);
+    return () => cancelAnimationFrame(raf);
+  }, [emotions, dominantEmotion, liveBox, drawOverlay]);
+
+  useEffect(() => {
+    if (!modelsLoaded || !secureReady || showResults || recording || analyzing) {
+      setLiveBox(null);
+      return;
+    }
+
+    let active = true;
+    let timerId: ReturnType<typeof setTimeout>;
+
+    async function runDetection() {
+      const video = webcamRef.current?.video;
+      if (video && video.readyState === 4) {
+        try {
+          const res = await detect(video);
+          if (active) {
+            if (res.face_detected && res.box) {
+              setLiveBox(res.box);
+              setEmotions(res.emotions);
+              setDominantEmotion(res.dominant_emotion);
+              setConfidence(res.confidence);
+              setEmotion(res.dominant_emotion);
+            } else {
+              setLiveBox(null);
+            }
+          }
+        } catch (e) {
+        }
+      }
+      if (active) {
+        timerId = setTimeout(runDetection, 150);
+      }
+    }
+
+    runDetection();
+
+    return () => {
+      active = false;
+      clearTimeout(timerId);
+    };
+  }, [modelsLoaded, secureReady, showResults, recording, analyzing, detect]);
+
   const processVideoFrame = useCallback(async (videoEl: HTMLVideoElement, imageUrl: string) => {
     setLoading(true);
     setAnalyzing(true);
+    setScanning(true);
+    setScanProgress(0);
     setError(null);
-    try {
-      // Step 1: Client-side face detection + emotion prediction
-      const faceResult = await detect(videoEl);
+    setShowResults(false);
 
-      // Step 2: Send to vision API for Google Vision labels (with client emotions)
+    let progress = 0;
+    const progressInterval = setInterval(() => {
+      progress += 2;
+      setScanProgress(Math.min(progress, 90));
+    }, 50);
+
+    try {
+      const faceResult = await detect(videoEl);
+      setEmotions(faceResult.emotions);
+      setDominantEmotion(faceResult.dominant_emotion);
+      setConfidence(faceResult.confidence);
+
       const file = await dataUrlToFile(imageUrl, "capture.jpg");
       const apiResult = await analyzeFace(file, faceResult);
 
-      // Merge results
-      setFaceScore(apiResult.face_score);
+      clearInterval(progressInterval);
+      setScanProgress(100);
+
       setEmotion(apiResult.detected_face_emotion);
       if (apiResult.emotions) setEmotions(apiResult.emotions);
       if (apiResult.dominant_emotion) setDominantEmotion(apiResult.dominant_emotion);
       if (apiResult.emotion_confidence !== undefined) setConfidence(apiResult.emotion_confidence);
       if (apiResult.google_labels) setLabels(apiResult.google_labels);
 
+      setShowResults(true);
       onComplete({
         face_score: apiResult.face_score,
         detected_face_emotion: apiResult.detected_face_emotion,
@@ -149,16 +263,26 @@ export default function FaceTab({ onComplete }: FaceTabProps) {
     } finally {
       setLoading(false);
       setAnalyzing(false);
+      setScanning(false);
+      clearInterval(progressInterval);
     }
   }, [detect, onComplete]);
 
-  // Process an uploaded image file
   const processUploadedImage = useCallback(async (file: File, imageUrl: string) => {
     setLoading(true);
     setAnalyzing(true);
+    setScanning(true);
+    setScanProgress(0);
     setError(null);
+    setShowResults(false);
+
+    let progress = 0;
+    const progressInterval = setInterval(() => {
+      progress += 2;
+      setScanProgress(Math.min(progress, 90));
+    }, 50);
+
     try {
-      // Create an offscreen image element for face detection
       const img = new Image();
       img.src = imageUrl;
       await new Promise<void>((resolve, reject) => {
@@ -167,15 +291,22 @@ export default function FaceTab({ onComplete }: FaceTabProps) {
       });
 
       const faceResult = await detect(img);
+      setEmotions(faceResult.emotions);
+      setDominantEmotion(faceResult.dominant_emotion);
+      setConfidence(faceResult.confidence);
+
       const apiResult = await analyzeFace(file, faceResult);
 
-      setFaceScore(apiResult.face_score);
+      clearInterval(progressInterval);
+      setScanProgress(100);
+
       setEmotion(apiResult.detected_face_emotion);
       if (apiResult.emotions) setEmotions(apiResult.emotions);
       if (apiResult.dominant_emotion) setDominantEmotion(apiResult.dominant_emotion);
       if (apiResult.emotion_confidence !== undefined) setConfidence(apiResult.emotion_confidence);
       if (apiResult.google_labels) setLabels(apiResult.google_labels);
 
+      setShowResults(true);
       onComplete({
         face_score: apiResult.face_score,
         detected_face_emotion: apiResult.detected_face_emotion,
@@ -190,6 +321,8 @@ export default function FaceTab({ onComplete }: FaceTabProps) {
     } finally {
       setLoading(false);
       setAnalyzing(false);
+      setScanning(false);
+      clearInterval(progressInterval);
     }
   }, [detect, onComplete]);
 
@@ -198,13 +331,13 @@ export default function FaceTab({ onComplete }: FaceTabProps) {
     const capture = webcamRef.current.getScreenshot();
     if (!capture) return;
     setImageUrl(capture);
-    const videoEl = getVideoElement();
-    if (videoEl) {
-      await processVideoFrame(videoEl, capture);
+    const video = webcamRef.current.video;
+    if (video) {
+      await processVideoFrame(video, capture);
     } else {
       setError("Camera not ready. Please try again.");
     }
-  }, [processVideoFrame, getVideoElement]);
+  }, [processVideoFrame]);
 
   const handleUpload = useCallback(async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -231,23 +364,20 @@ export default function FaceTab({ onComplete }: FaceTabProps) {
     const maxDuration = 15;
 
     const doCapture = async () => {
-      const videoEl = getVideoElement();
-      if (!videoEl || !webcamRef.current) return;
+      const video = webcamRef.current?.video;
+      if (!video || !webcamRef.current) return;
       const capture = webcamRef.current.getScreenshot();
       if (!capture) return;
       setImageUrl(capture);
       elapsed += 3;
       setRecTime(elapsed);
 
-      // Run client-side face detection on each frame (fast, no API call)
       try {
-        const faceResult = await detect(videoEl);
-        setFaceScore(faceResult.face_detected ? (faceResult.confidence > 0.5 ? 0.7 : 0.3) : 0.2);
-        setEmotion(faceResult.dominant_emotion);
+        const faceResult = await detect(video);
         setEmotions(faceResult.emotions);
         setDominantEmotion(faceResult.dominant_emotion);
         setConfidence(faceResult.confidence);
-      } catch { /* ignore per-frame errors */ }
+      } catch {  }
 
       if (elapsed >= maxDuration) {
         if (recIntervalRef.current) {
@@ -255,239 +385,226 @@ export default function FaceTab({ onComplete }: FaceTabProps) {
           recIntervalRef.current = null;
         }
         setRecording(false);
-        // Final capture: send to API for Google Vision labels
-        await processVideoFrame(videoEl, capture);
+        await processVideoFrame(video, capture);
       }
     };
 
     doCapture();
-    recIntervalRef.current = setInterval(() => {
-      doCapture();
-    }, 3000);
-  }, [recording, detect, processVideoFrame, getVideoElement]);
+    recIntervalRef.current = setInterval(doCapture, 3000);
+  }, [recording, detect, processVideoFrame]);
 
-  const cycleCrt = () => {
-    if (crtMode === "green") setCrtMode("blue");
-    else if (crtMode === "blue") setCrtMode("off");
-    else setCrtMode("green");
-  };
+  useEffect(() => {
+    return () => {
+      if (recIntervalRef.current) clearInterval(recIntervalRef.current);
+    };
+  }, []);
 
-  const crtOverlayClass =
-    crtMode === "green"
-      ? "bg-[linear-gradient(transparent_50%,rgba(0,255,0,0.03)_50%)] bg-[length:100%_2px]"
-      : crtMode === "blue"
-      ? "bg-[linear-gradient(transparent_50%,rgba(0,100,255,0.03)_50%)] bg-[length:100%_2px]"
-      : "";
-
-  const crtBorderColor =
-    crtMode === "green" ? "border-[#00ff88]/20" : crtMode === "blue" ? "border-[#00ccff]/20" : "border-[#333]";
-
-  const crtGlow =
-    crtMode === "green"
-      ? "shadow-[0_0_40px_rgba(0,255,136,0.08)]"
-      : crtMode === "blue"
-      ? "shadow-[0_0_40px_rgba(0,204,255,0.08)]"
-      : "";
+  const emotionBars = useMemo(() => {
+    if (emotions) {
+      return Object.entries(emotions)
+        .sort(([, a], [, b]) => (b as number) - (a as number))
+        .map(([name, value]) => ({
+          name,
+          value: value as number,
+          config: EMOTION_CONFIG[name] || { color: "#64748b", gradient: "from-slate-400 to-slate-600", icon: <Meh size={14} />, label: name },
+        }));
+    }
+    return [];
+  }, [emotions]);
 
   return (
     <div className="space-y-6">
-      {/* Header bar */}
+
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <span className="font-mono text-xs uppercase tracking-[0.3em] text-[var(--cream)]">
-            MINDSCAN IMAGING v3.0
-          </span>
-          <span className="inline-block h-2 w-2 rounded-full bg-red-500 animate-pulse" />
-          <span className="font-mono text-[10px] uppercase tracking-[0.2em] text-red-400">
-            {recording ? `REC ${recTime}s` : "STANDBY"}
-          </span>
-        </div>
-        <div className="flex items-center gap-4">
-          <button
-            onClick={cycleCrt}
-            className="flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-[0.2em] px-2 py-1 border border-[var(--cream)]/30 text-[var(--cream)]/60 hover:text-[var(--cream)] hover:border-[var(--cream)]/60 transition"
-          >
-            <MonitorSpeaker size={12} />
-            CRT: {crtMode.toUpperCase()}
-          </button>
-          {crtMode !== "off" && (
-            <span className="font-mono text-[9px] uppercase tracking-[0.15em] text-[var(--text-muted)]">
-              PHOSPHOR: {crtMode === "green" ? "P31" : "P22"}
+          <div className="flex items-center gap-2 bg-white/5 backdrop-blur-sm rounded-full px-4 py-2 border border-white/10">
+            <Brain size={16} className="text-blue-400" />
+            <span className="font-mono text-xs uppercase tracking-[0.2em] text-white/80">
+              Emotion Analysis
             </span>
+          </div>
+          {recording && (
+            <div className="flex items-center gap-2 bg-red-500/10 backdrop-blur-sm rounded-full px-3 py-1.5 border border-red-500/20">
+              <div className="h-2 w-2 rounded-full bg-red-500 animate-pulse" />
+              <span className="font-mono text-[10px] uppercase tracking-wider text-red-400">
+                REC {recTime}s
+              </span>
+            </div>
           )}
+        </div>
+        <div className="flex items-center gap-2">
+          <Shield size={14} className="text-emerald-400" />
+          <span className="font-mono text-[10px] uppercase tracking-[0.15em] text-white/40">
+            Secure & Private
+          </span>
         </div>
       </div>
 
       <div className="grid gap-6 lg:grid-cols-[1.4fr_1fr]">
-        {/* Camera Panel */}
-        <div className="relative">
-          <div className={`bg-[#0a0e08] rounded-lg border-2 ${crtBorderColor} p-1 ${crtGlow} transition-all duration-500`}>
-            {/* Bezel top */}
-            <div className="bg-[#111] rounded-t-md px-4 py-2 flex items-center justify-between border-b border-[#222]">
-              <div className="flex items-center gap-2">
-                <div className="w-2 h-2 rounded-full bg-red-500 shadow-[0_0_4px_#ff0000]" />
-                <div className="w-2 h-2 rounded-full bg-yellow-500 shadow-[0_0_4px_#ffff00]" />
-                <div className="w-2 h-2 rounded-full bg-green-500 shadow-[0_0_4px_#00ff00]" />
-              </div>
-              <div className="flex items-center gap-3">
-                <Crosshair size={12} className="text-[#00ff88]/40" />
-                <span className="font-mono text-[10px] uppercase tracking-[0.2em] text-[#00ff88]/80">
-                  FACIAL DIAGNOSTIC IMAGING
-                </span>
-                <Crosshair size={12} className="text-[#00ff88]/40" />
-              </div>
-              <span className="font-mono text-[10px] text-[#444]">DICOM 3.0</span>
-            </div>
 
-            {/* Screen */}
-            <div className="relative aspect-video bg-black overflow-hidden">
+        <div className="relative">
+          <div 
+            className="relative rounded-2xl overflow-hidden bg-black/60 backdrop-blur-md border transition-all duration-500 shadow-2xl shadow-black/80"
+            style={{ 
+              borderColor: dominantEmotion ? `${currentEmotionConfig.color}40` : "rgba(255,255,255,0.1)",
+              boxShadow: dominantEmotion ? `0 0 40px ${currentEmotionConfig.color}15, inset 0 0 20px ${currentEmotionConfig.color}05` : "none"
+            }}
+          >
+            <div className="relative aspect-video bg-neutral-950 overflow-hidden">
               {secureReady ? (
                 <>
                   <Webcam
                     ref={webcamRef}
                     screenshotFormat="image/jpeg"
-                    className={`h-full w-full object-cover ${
-                      crtMode === "green"
-                        ? "brightness-110 saturate-50 hue-rotate-[80deg]"
-                        : crtMode === "blue"
-                        ? "brightness-110 saturate-75 hue-rotate-[200deg]"
-                        : ""
-                    }`}
+                    className="h-full w-full object-cover opacity-90"
                   />
-                  {/* CRT scanlines */}
-                  {crtMode !== "off" && (
-                    <div className="pointer-events-none absolute inset-0" style={{ background: "repeating-linear-gradient(0deg, transparent, transparent 1px, rgba(0,0,0,0.15) 1px, rgba(0,0,0,0.15) 2px)" }} />
+                  <canvas
+                    ref={canvasRef}
+                    className="absolute inset-0 h-full w-full object-cover pointer-events-none z-10"
+                  />
+                  {scanning && (
+                    <div className="absolute inset-0 bg-gradient-to-b from-[var(--amber-gold)]/5 via-[var(--amber-gold)]/10 to-[var(--amber-gold)]/5 pointer-events-none z-20">
+                      <div
+                        className="absolute left-0 right-0 h-0.5 bg-gradient-to-r from-transparent via-[var(--amber-gold)] to-transparent"
+                        style={{
+                          top: `${scanProgress}%`,
+                          boxShadow: "0 0 25px 4px var(--amber-gold)",
+                          transition: "top 0.1s ease-out",
+                        }}
+                      />
+                    </div>
                   )}
-                  {/* CRT phosphor grid */}
-                  {crtMode !== "off" && (
-                    <div className="pointer-events-none absolute inset-0 opacity-20" style={{ backgroundImage: "radial-gradient(circle, rgba(255,255,255,0.08) 1px, transparent 1px)", backgroundSize: "3px 3px" }} />
+                  {showResults && dominantEmotion && (
+                    <div className="absolute bottom-4 left-4 right-4 z-30 pointer-events-none">
+                      <div className="bg-black/80 backdrop-blur-lg rounded-xl p-4 border border-white/10 shadow-lg">
+                        <div className="flex items-center gap-3 mb-3">
+                          <div
+                            className="w-10 h-10 rounded-full flex items-center justify-center transition-transform duration-500 hover:scale-105"
+                            style={{ backgroundColor: `${currentEmotionConfig.color}20`, border: `1px solid ${currentEmotionConfig.color}40` }}
+                          >
+                            {currentEmotionConfig.icon}
+                          </div>
+                          <div>
+                            <div className="text-sm font-semibold text-white tracking-wide">
+                              {currentEmotionConfig.label}
+                            </div>
+                            {confidence !== null && (
+                              <div className="text-[10px] uppercase tracking-wider text-white/50">
+                                {Math.round(confidence * 100)}% reliability
+                              </div>
+                            )}
+                          </div>
+                          <CheckCircle2 size={16} className="ml-auto text-emerald-400" />
+                        </div>
+                        <div className="grid grid-cols-4 gap-2 border-t border-white/5 pt-2.5">
+                          {emotionBars.slice(0, 4).map((item) => (
+                            <div key={item.name} className="text-center">
+                              <div className="text-[9px] uppercase tracking-wider text-white/40 mb-1">{item.name}</div>
+                              <div className="h-1 bg-white/10 rounded-full overflow-hidden">
+                                <div
+                                  className="h-full rounded-full transition-all duration-500"
+                                  style={{
+                                    width: `${Math.max(item.value * 100, 5)}%`,
+                                    backgroundColor: item.config.color,
+                                  }}
+                                />
+                              </div>
+                              <div className="text-[9px] font-mono text-white/60 mt-0.5">{Math.round(item.value * 100)}%</div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
                   )}
-                  {/* Medical crosshair overlay */}
-                  <div className="pointer-events-none absolute inset-0">
-                    {/* Corner brackets */}
-                    <span className="absolute left-3 top-3 h-8 w-8 border-l-2 border-t-2 border-[#00ff88]/50" />
-                    <span className="absolute right-3 top-3 h-8 w-8 border-r-2 border-t-2 border-[#00ff88]/50" />
-                    <span className="absolute bottom-3 left-3 h-8 w-8 border-b-2 border-l-2 border-[#00ff88]/50" />
-                    <span className="absolute bottom-3 right-3 h-8 w-8 border-b-2 border-r-2 border-[#00ff88]/50" />
-                    {/* Center crosshair */}
-                    <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2">
-                      <div className="h-6 w-px bg-[#00ff88]/30" />
-                      <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 h-px w-6 bg-[#00ff88]/30" />
-                    </div>
-                    {/* Horizontal guide lines */}
-                    <div className="absolute left-0 right-0 top-[30%] h-px bg-[#00ff88]/10" />
-                    <div className="absolute left-0 right-0 top-[70%] h-px bg-[#00ff88]/10" />
-                    {/* Vertical guide lines */}
-                    <div className="absolute top-0 bottom-0 left-[30%] w-px bg-[#00ff88]/10" />
-                    <div className="absolute top-0 bottom-0 left-[70%] w-px bg-[#00ff88]/10" />
+                  <div className="pointer-events-none absolute inset-0 z-20">
+                    <span className="absolute left-4 top-4 h-6 w-6 border-l-2 border-t-2 border-[var(--amber-gold)]/40 rounded-tl-md" />
+                    <span className="absolute right-4 top-4 h-6 w-6 border-r-2 border-t-2 border-[var(--amber-gold)]/40 rounded-tr-md" />
+                    <span className="absolute bottom-4 left-4 h-6 w-6 border-b-2 border-l-2 border-[var(--amber-gold)]/40 rounded-bl-md" />
+                    <span className="absolute bottom-4 right-4 h-6 w-6 border-b-2 border-r-2 border-[var(--amber-gold)]/40 rounded-br-md" />
                   </div>
-                  {/* Medical metadata overlay */}
-                  <div className="pointer-events-none absolute inset-0 p-3 flex flex-col justify-between">
-                    <div className="flex justify-between items-start">
-                      <div className="space-y-0.5">
-                        <div className="font-mono text-[9px] text-[#00ff88]/70">MINDSCAN MEDICAL IMAGING</div>
-                        <div className="font-mono text-[8px] text-[#00ff88]/40">MODALITY: FACIAL EMOTION DETECTION</div>
-                        <div className="font-mono text-[8px] text-[#00ff88]/40">PROTOCOL: NEURO-AFFECTIVE SCREENING</div>
-                      </div>
-                      <div className="text-right space-y-0.5">
-                        <div className="font-mono text-[8px] text-[#00ff88]/40">
-                          {new Date().toLocaleDateString("en-US", { year: "numeric", month: "short", day: "2-digit" })}
-                        </div>
-                        <div className="font-mono text-[8px] text-[#00ff88]/40">
-                          {new Date().toLocaleTimeString("en-US", { hour12: false })}
-                        </div>
-                        <div className="font-mono text-[8px] text-[#00ff88]/40">SLICE: 1/1</div>
-                      </div>
-                    </div>
-                    <div className="flex justify-between items-end">
-                      <div className="font-mono text-[8px] text-[#00ff88]/40">
-                        W: 640 H: 480窗宽: 255 窗位: 127
-                      </div>
-                      <div className="font-mono text-[8px] text-[#00ff88]/40">
-                        FOV: 480mm 像素: 0.75mm
-                      </div>
-                    </div>
-                  </div>
-                  {/* Recording indicator */}
-                  {recording && (
-                    <div className="pointer-events-none absolute top-3 left-1/2 -translate-x-1/2 flex items-center gap-1.5 bg-black/70 px-3 py-1 border border-red-500/30">
-                      <div className="h-2 w-2 rounded-full bg-red-500 animate-pulse" />
-                      <span className="font-mono text-[10px] text-red-400 uppercase tracking-wider">
-                        REC {recTime}s / 15s
+                  <div className="absolute top-0 left-0 right-0 p-3 flex justify-between items-center bg-gradient-to-b from-black/80 to-transparent z-20">
+                    <div className="flex items-center gap-2">
+                      <Scan size={12} className="text-white/60" />
+                      <span className="font-mono text-[9px] text-white/60 uppercase tracking-[0.2em]">
+                        Neural Perception Stack
                       </span>
                     </div>
-                  )}
-                  {/* Scan beam animation */}
-                  {crtMode !== "off" && (
-                    <div
-                      className="pointer-events-none absolute left-0 right-0 h-px opacity-30"
-                      style={{
-                        background: crtMode === "green" ? "#00ff88" : "#00ccff",
-                        animation: "scanBeam 4s linear infinite",
-                      }}
-                    />
+                    <div className="flex items-center gap-1.5 bg-black/40 backdrop-blur-md rounded-full px-2.5 py-1 border border-white/5">
+                      <Radio size={10} className="text-[var(--amber-gold)] animate-pulse" />
+                      <span className="font-mono text-[9px] text-[var(--amber-gold)] tracking-wider">LIVE</span>
+                    </div>
+                  </div>
+                  {recording && (
+                    <div className="absolute top-12 left-1/2 -translate-x-1/2 pointer-events-none z-20">
+                      <div className="flex items-center gap-2 bg-red-950/80 backdrop-blur-sm rounded-full px-4 py-1.5 border border-red-500/30 shadow-lg">
+                        <div className="h-2 w-2 rounded-full bg-red-500 animate-pulse" />
+                        <span className="font-mono text-[9px] text-red-400 uppercase tracking-[0.25em]">
+                          MONITORING {recTime}s / 15s
+                        </span>
+                      </div>
+                    </div>
                   )}
                 </>
               ) : (
-                <div className="flex h-full w-full flex-col items-center justify-center gap-3 text-center">
-                  <CameraOff size={40} className="text-[#555]" />
-                  <span className="font-mono text-xs uppercase tracking-[0.2em] text-[#00ccff]">
-                    CAMERA UNAVAILABLE
-                  </span>
-                  <span className="font-mono text-[10px] text-[#666] max-w-[200px]">
-                    Requires HTTPS context. Try uploading an image instead.
-                  </span>
+                <div className="flex h-full w-full flex-col items-center justify-center gap-4 text-center p-8">
+                  <div className="w-16 h-16 rounded-full bg-white/5 flex items-center justify-center border border-white/10">
+                    <CameraOff size={28} className="text-white/30" />
+                  </div>
+                  <div>
+                    <div className="text-xs uppercase tracking-wider text-white/60">Camera Offline</div>
+                    <div className="text-[10px] text-white/35 uppercase tracking-widest mt-1">Requires HTTPS context</div>
+                  </div>
                 </div>
               )}
             </div>
-
-            {/* Bezel bottom with controls */}
-            <div className="bg-[#111] rounded-b-md px-4 py-3 border-t border-[#222]">
-              <div className="flex flex-col gap-3 sm:flex-row">
+            <div className="bg-black/80 p-4 border-t border-white/5">
+              <div className="flex flex-col sm:flex-row gap-3">
                 <button
                   onClick={handleCapture}
                   disabled={!secureReady || loading || modelsLoading || !modelsLoaded}
-                  className="retro-btn retro-btn-primary flex-1 flex items-center justify-center gap-2"
+                  className="flex-1 flex items-center justify-center gap-2.5 px-4 py-3 rounded-xl border border-[var(--rust)] bg-black/45 text-[var(--cream)] font-mono text-[10px] uppercase tracking-[0.25em] transition-all hover:bg-[var(--amber-gold)] hover:text-black hover:border-[var(--amber-gold)] hover:shadow-[0_0_15px_rgba(232,220,200,0.15)] disabled:opacity-30 disabled:cursor-not-allowed"
                 >
                   {analyzing ? (
                     <>
-                      <Activity size={14} className="animate-pulse" />
-                      ANALYZING...
+                      <Activity size={12} className="animate-pulse" />
+                      Analyzing
                     </>
                   ) : modelsLoading ? (
                     <>
-                      <Activity size={14} className="animate-pulse" />
-                      LOADING MODELS...
+                      <Activity size={12} className="animate-pulse" />
+                      Loading
                     </>
                   ) : (
                     <>
-                      <Camera size={14} />
-                      CAPTURE
+                      <Camera size={12} />
+                      Capture Frame
                     </>
                   )}
                 </button>
                 <button
                   onClick={handleAutoCapture}
                   disabled={!secureReady || loading || modelsLoading || !modelsLoaded}
-                  className={`retro-btn flex-1 flex items-center justify-center gap-2 ${
-                    recording ? "retro-btn-danger" : "retro-btn-secondary"
+                  className={`flex-1 flex items-center justify-center gap-2.5 px-4 py-3 rounded-xl border font-mono text-[10px] uppercase tracking-[0.25em] transition-all disabled:opacity-30 disabled:cursor-not-allowed ${
+                    recording
+                      ? "bg-red-950/40 border-red-500/40 text-red-400 hover:bg-red-500 hover:text-black hover:border-red-500 hover:shadow-[0_0_15px_rgba(239,68,68,0.2)]"
+                      : "bg-black/45 border-[var(--rust)] text-[var(--cream)] hover:bg-[var(--amber-gold)] hover:text-black hover:border-[var(--amber-gold)] hover:shadow-[0_0_15px_rgba(232,220,200,0.15)]"
                   }`}
                 >
                   {recording ? (
                     <>
-                      <Square size={14} />
-                      STOP ({15 - recTime}s)
+                      <Square size={12} />
+                      Stop ({15 - recTime}s)
                     </>
                   ) : (
                     <>
-                      <Play size={14} />
-                      AUTO (15s)
+                      <Play size={12} />
+                      Auto Analyze
                     </>
                   )}
                 </button>
-                <label className="retro-btn retro-btn-accent flex-1 flex items-center justify-center gap-2 text-center cursor-pointer">
-                  <Upload size={14} />
-                  UPLOAD
+                <label className="flex-1 flex items-center justify-center gap-2.5 px-4 py-3 rounded-xl border border-[var(--rust)] bg-black/45 text-[var(--cream)] font-mono text-[10px] uppercase tracking-[0.25em] transition-all hover:bg-[var(--amber-gold)] hover:text-black hover:border-[var(--amber-gold)] hover:shadow-[0_0_15px_rgba(232,220,200,0.15)] cursor-pointer text-center">
+                  <Upload size={12} />
+                  Upload Image
                   <input type="file" accept="image/png,image/jpeg,image/webp" onChange={handleUpload} className="hidden" />
                 </label>
               </div>
@@ -495,45 +612,53 @@ export default function FaceTab({ onComplete }: FaceTabProps) {
           </div>
         </div>
 
-        {/* Emotion Readout Panel */}
         <div className="space-y-4">
-          {/* Model Status */}
+
           {modelsLoading && (
-            <div className="bg-[#0a0a1a] border border-yellow-500/30 rounded-lg p-3 shadow-[0_0_20px_rgba(255,200,0,0.05)]">
-              <div className="flex items-center gap-2">
-                <Activity size={14} className="text-yellow-400 animate-pulse" />
-                <span className="font-mono text-xs uppercase tracking-[0.2em] text-yellow-400">
-                  Loading face detection models...
-                </span>
+            <div className="bg-blue-500/5 border border-blue-500/20 rounded-xl p-4">
+              <div className="flex items-center gap-3">
+                <div className="w-8 h-8 rounded-full bg-blue-500/10 flex items-center justify-center">
+                  <Activity size={14} className="text-blue-400 animate-pulse" />
+                </div>
+                <div>
+                  <div className="text-xs font-medium text-blue-400">Loading Models</div>
+                  <div className="text-[10px] text-white/30">Initializing face detection...</div>
+                </div>
               </div>
             </div>
           )}
           {modelsError && (
-            <div className="bg-[#0a0a1a] border border-red-500/30 rounded-lg p-3 shadow-[0_0_20px_rgba(255,0,0,0.05)]">
-              <div className="flex items-center gap-2">
+            <div className="bg-red-500/5 border border-red-500/20 rounded-xl p-4">
+              <div className="flex items-center gap-3">
                 <AlertTriangle size={14} className="text-red-400" />
-                <span className="font-mono text-xs uppercase tracking-[0.2em] text-red-400">
-                  {modelsError}
-                </span>
+                <span className="text-xs text-red-400">{modelsError}</span>
               </div>
             </div>
           )}
 
-          {/* Dominant Emotion Display */}
-          <div className="bg-[#0a0a1a] border border-[#00ccff]/30 rounded-lg p-4 shadow-[0_0_20px_rgba(0,204,255,0.05)]">
-            <div className="font-mono text-[10px] uppercase tracking-[0.3em] text-[#00ccff]/60 mb-2">
-              DETECTED EMOTION
+          <div className="bg-gradient-to-br from-white/5 to-white/[0.02] backdrop-blur-sm border border-white/10 rounded-2xl p-5">
+            <div className="font-mono text-[10px] uppercase tracking-[0.2em] text-white/40 mb-3">
+              Detected Emotion
             </div>
-            <div className="flex items-center gap-3">
-              <div className="flex h-12 w-12 items-center justify-center border border-[#00ccff]/30 bg-[#00ccff]/5 text-[#00ccff]">
-                {EMOTION_ICONS[dominantEmotion || emotion] || <ScanEye size={20} />}
+            <div className="flex items-center gap-4">
+              <div
+                className="w-14 h-14 rounded-2xl flex items-center justify-center transition-all duration-500"
+                style={{
+                  backgroundColor: `${currentEmotionConfig.color}15`,
+                  border: `1px solid ${currentEmotionConfig.color}30`,
+                  boxShadow: `0 0 30px ${currentEmotionConfig.color}10`,
+                }}
+              >
+                <div style={{ color: currentEmotionConfig.color }}>
+                  {currentEmotionConfig.icon}
+                </div>
               </div>
               <div>
-                <div className="font-display text-2xl uppercase tracking-wider text-[var(--cream)]">
-                  {dominantEmotion || emotion}
+                <div className="text-xl font-semibold text-white">
+                  {currentEmotionConfig.label}
                 </div>
                 {confidence !== null && (
-                  <div className="font-mono text-xs text-[#00ccff]">
+                  <div className="text-sm text-white/50 mt-0.5">
                     {Math.round(confidence * 100)}% confidence
                   </div>
                 )}
@@ -541,47 +666,50 @@ export default function FaceTab({ onComplete }: FaceTabProps) {
             </div>
           </div>
 
-          {/* Emotion Bars */}
-          <div className="bg-[#0a0a1a] border border-[#333] rounded-lg p-4">
-            <div className="font-mono text-[10px] uppercase tracking-[0.3em] text-[var(--cream)]/60 mb-3">
-              EMOTION SPECTRUM
-            </div>
-            <div className="space-y-2">
-              {emotionBars.map((item) => (
-                <div key={item.name} className="space-y-1">
-                  <div className="flex justify-between items-center">
-                    <span className="font-mono text-[10px] uppercase tracking-wider text-[var(--cream)]/80 flex items-center gap-1.5">
-                      <span className="text-[var(--cream)]/40">{item.icon}</span>
-                      {item.name}
-                    </span>
-                    <span className="font-mono text-[10px] text-[#00ccff]">
-                      {Math.round(item.value * 100)}%
-                    </span>
+          {emotionBars.length > 0 && (
+            <div className="bg-gradient-to-br from-white/5 to-white/[0.02] backdrop-blur-sm border border-white/10 rounded-2xl p-5">
+              <div className="font-mono text-[10px] uppercase tracking-[0.2em] text-white/40 mb-4">
+                Emotion Spectrum
+              </div>
+              <div className="space-y-3">
+                {emotionBars.map((item) => (
+                  <div key={item.name} className="space-y-1.5">
+                    <div className="flex justify-between items-center">
+                      <span className="text-xs text-white/60 flex items-center gap-2">
+                        <span style={{ color: item.config.color }}>{item.config.icon}</span>
+                        {item.config.label}
+                      </span>
+                      <span className="font-mono text-[10px]" style={{ color: item.config.color }}>
+                        {Math.round(item.value * 100)}%
+                      </span>
+                    </div>
+                    <div className="h-2 w-full bg-white/5 rounded-full overflow-hidden">
+                      <div
+                        className="h-full rounded-full transition-all duration-700 ease-out"
+                        style={{
+                          width: `${Math.max(item.value * 100, 3)}%`,
+                          backgroundColor: item.config.color,
+                          boxShadow: item.value > 0.3 ? `0 0 12px ${item.config.color}40` : "none",
+                        }}
+                      />
+                    </div>
                   </div>
-                  <div className="h-[6px] w-full bg-[#1a1a2e] rounded-full overflow-hidden">
-                    <div
-                      className="h-full rounded-full transition-all duration-500 ease-out"
-                      style={{
-                        width: `${Math.max(item.value * 100, 2)}%`,
-                        backgroundColor: item.color,
-                        boxShadow: item.value > 0.3 ? `0 0 8px ${item.color}40` : "none",
-                      }}
-                    />
-                  </div>
-                </div>
-              ))}
+                ))}
+              </div>
             </div>
-          </div>
+          )}
 
-          {/* Vision Labels */}
           {labels.length > 0 && (
-            <div className="bg-[#0a0a1a] border border-[#333] rounded-lg p-4">
-              <div className="font-mono text-[10px] uppercase tracking-[0.3em] text-[var(--cream)]/60 mb-2">
-                VISION LABELS
+            <div className="bg-gradient-to-br from-white/5 to-white/[0.02] backdrop-blur-sm border border-white/10 rounded-2xl p-5">
+              <div className="font-mono text-[10px] uppercase tracking-[0.2em] text-white/40 mb-3">
+                Vision Analysis
               </div>
               <div className="flex flex-wrap gap-2">
                 {labels.map((label) => (
-                  <span key={label} className="font-mono text-[10px] px-2 py-1 bg-[#1a1a2e] border border-[#333] text-[#00ccff] rounded">
+                  <span
+                    key={label}
+                    className="px-3 py-1 bg-white/5 border border-white/10 rounded-full text-[10px] text-white/60"
+                  >
                     {label}
                   </span>
                 ))}
@@ -589,84 +717,77 @@ export default function FaceTab({ onComplete }: FaceTabProps) {
             </div>
           )}
 
-          {/* Captured Frame Preview */}
           {imageUrl && (
-            <div className="bg-[#0a0a1a] border border-[#333] rounded-lg p-3">
-              <div className="font-mono text-[10px] uppercase tracking-[0.3em] text-[var(--cream)]/60 mb-2">
-                CAPTURED FRAME
+            <div className="bg-gradient-to-br from-white/5 to-white/[0.02] backdrop-blur-sm border border-white/10 rounded-2xl p-4">
+              <div className="font-mono text-[10px] uppercase tracking-[0.2em] text-white/40 mb-3">
+                Captured Frame
               </div>
-              <div className="relative aspect-video w-full border border-[#333] rounded overflow-hidden">
-                <img src={imageUrl} alt="Captured frame" className="h-full w-full object-cover" />
-                {crtMode !== "off" && (
-                  <div className="pointer-events-none absolute inset-0" style={{ background: "repeating-linear-gradient(0deg, transparent, transparent 1px, rgba(0,0,0,0.1) 1px, rgba(0,0,0,0.1) 2px)" }} />
-                )}
+              <div className="relative aspect-video w-full rounded-xl overflow-hidden border border-white/10">
+                <img src={imageUrl} alt="Captured" className="h-full w-full object-cover" />
               </div>
             </div>
           )}
         </div>
       </div>
 
-      {/* Loading State */}
       {loading && (
-        <div className="bg-[#0a0a1a] border border-[#00ccff]/30 rounded-lg p-6 shadow-[0_0_20px_rgba(0,204,255,0.05)]">
+        <div className="bg-blue-500/5 border border-blue-500/20 rounded-2xl p-6">
           <div className="flex items-center gap-4">
             <LoadingSpinner />
             <div>
-              <div className="font-mono text-xs uppercase tracking-[0.3em] text-[#00ccff] flex items-center gap-2">
+              <div className="text-sm font-medium text-blue-400 flex items-center gap-2">
                 <Activity size={14} className="animate-pulse" />
-                PROCESSING...
+                Processing Neural Analysis
               </div>
-              <div className="font-mono text-[10px] text-[var(--cream)]/40 mt-1">
-                Running client-side emotion model + Google Vision analysis
+              <div className="text-xs text-white/30 mt-1">
+                Running face detection + emotion classification + vision analysis
               </div>
             </div>
+            <div className="ml-auto">
+              <div className="text-xs font-mono text-blue-400">{scanProgress}%</div>
+            </div>
+          </div>
+          <div className="mt-4 h-1 bg-white/5 rounded-full overflow-hidden">
+            <div
+              className="h-full bg-gradient-to-r from-blue-500 to-blue-400 rounded-full transition-all duration-300"
+              style={{ width: `${scanProgress}%` }}
+            />
           </div>
         </div>
       )}
 
-      {/* Error State */}
       {error && (
-        <div className="border border-red-500/50 bg-red-500/10 rounded-lg p-4 flex items-start gap-3">
+        <div className="bg-red-500/5 border border-red-500/20 rounded-2xl p-4 flex items-start gap-3">
           <AlertTriangle size={16} className="text-red-400 mt-0.5 shrink-0" />
           <div>
-            <div className="font-mono text-xs uppercase tracking-[0.2em] text-red-400">ERROR</div>
-            <div className="font-mono text-sm text-red-300 mt-1">{error}</div>
+            <div className="text-xs font-medium text-red-400">Error</div>
+            <div className="text-sm text-red-300/80 mt-1">{error}</div>
           </div>
         </div>
       )}
 
-      {/* Instructions */}
       {!imageUrl && !loading && (
-        <div className="bg-[#0a0a1a] border border-[#333] rounded-lg p-4">
-          <div className="font-mono text-[10px] uppercase tracking-[0.3em] text-[var(--cream)]/60 mb-2">
-            PROTOCOL INSTRUCTIONS
+        <div className="bg-gradient-to-br from-white/5 to-white/[0.02] backdrop-blur-sm border border-white/10 rounded-2xl p-5">
+          <div className="font-mono text-[10px] uppercase tracking-[0.2em] text-white/40 mb-3">
+            How It Works
           </div>
-          <ul className="space-y-1.5 font-mono text-[11px] text-[var(--cream)]/50">
-            <li className="flex items-start gap-2">
-              <Crosshair size={10} className="mt-1 shrink-0 text-[#00ff88]/40" />
-              Position your face clearly in the camera frame
-            </li>
-            <li className="flex items-start gap-2">
-              <Camera size={10} className="mt-1 shrink-0 text-[#00ff88]/40" />
-              Click CAPTURE for a single frame analysis
-            </li>
-            <li className="flex items-start gap-2">
-              <Play size={10} className="mt-1 shrink-0 text-[#00ff88]/40" />
-              Click AUTO for continuous 15-second monitoring
-            </li>
-            <li className="flex items-start gap-2">
-              <Upload size={10} className="mt-1 shrink-0 text-[#00ff88]/40" />
-              Or UPLOAD a photo from your device
-            </li>
-            <li className="flex items-start gap-2">
-              <Activity size={10} className="mt-1 shrink-0 text-[#00ff88]/40" />
-              Emotion detection runs in your browser (no server needed)
-            </li>
-            <li className="flex items-start gap-2">
-              <ScanEye size={10} className="mt-1 shrink-0 text-[#00ff88]/40" />
-              Google Vision provides supplementary label analysis
-            </li>
-          </ul>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            {[
+              { icon: <Camera size={16} />, label: "Capture", desc: "Take a photo or record 15s" },
+              { icon: <Brain size={16} />, label: "Analyze", desc: "AI detects 7 emotions" },
+              { icon: <Sparkles size={16} />, label: "Results", desc: "See your emotion spectrum" },
+            ].map((step, i) => (
+              <div key={i} className="flex items-center gap-3 p-3 bg-white/5 rounded-xl border border-white/5">
+                <div className="w-8 h-8 rounded-lg bg-blue-500/10 flex items-center justify-center text-blue-400">
+                  {step.icon}
+                </div>
+                <div>
+                  <div className="text-xs font-medium text-white/80">{step.label}</div>
+                  <div className="text-[10px] text-white/30">{step.desc}</div>
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
       )}
     </div>

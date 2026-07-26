@@ -150,7 +150,7 @@ STRICT RULES:
 
   return (
     <div className="space-y-6">
-      {/* STORY INPUT */}
+
       {!analysisDone && (
         <>
           <div className="border border-white/10 bg-[#efe4d2] p-6 text-black">
@@ -189,7 +189,6 @@ STRICT RULES:
         </>
       )}
 
-      {/* ANALYSIS LOADING */}
       {analyzing && !analysisDone && (
         <div className="card-shell p-6">
           <div className="flex items-center gap-3">
@@ -201,10 +200,9 @@ STRICT RULES:
         </div>
       )}
 
-      {/* CHAT RESPONSE + CONTINUE CHATTING */}
       {chatMessages.length > 0 && (
         <div className="space-y-4">
-          {/* Emotion tags */}
+
           {emotionLabels && (
             <div className="flex flex-wrap gap-2">
               {analysisResult?.detected_emotions?.map((emo) => (
@@ -218,7 +216,6 @@ STRICT RULES:
             </div>
           )}
 
-          {/* Chat messages */}
           <div className="space-y-4 border border-white/10 p-4">
             {chatMessages.map((msg) => (
               <div key={msg.id} className="space-y-1">
@@ -243,7 +240,6 @@ STRICT RULES:
             <div ref={chatEndRef} />
           </div>
 
-          {/* Continue chatting */}
           <div className="flex flex-col gap-3 sm:flex-row">
             <input
               value={chatInput}
@@ -264,7 +260,6 @@ STRICT RULES:
         </div>
       )}
 
-      {/* Score summary after analysis */}
       {analysisResult && (
         <div className="card-shell p-6">
           <div className="flex items-center gap-3">

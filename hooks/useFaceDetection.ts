@@ -10,6 +10,12 @@ export interface FaceDetectionResult {
   dominant_emotion: string;
   confidence: number;
   face_detected: boolean;
+  box?: {
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+  };
 }
 
 interface UseFaceDetectionOptions {
@@ -80,14 +86,14 @@ export function useFaceDetection(options?: UseFaceDetectionOptions) {
         }
       }
 
-      // Capitalize first letter
       bestName = bestName.charAt(0).toUpperCase() + bestName.slice(1);
-
+      const { x, y, width, height } = detection.detection.box;
       return {
         emotions,
         dominant_emotion: bestName,
         confidence: Math.round(bestScore * 100) / 100,
         face_detected: true,
+        box: { x, y, width, height },
       };
     } catch (err) {
       console.error("[FaceDetection] Detection error:", err);

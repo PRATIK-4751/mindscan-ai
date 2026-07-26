@@ -41,22 +41,18 @@ export default function VoiceTab({ onComplete }: VoiceTabProps) {
   const [emotion, setEmotion] = useState("Neutral");
   const [language, setLanguage] = useState("en-US");
   
-  // Native MediaRecorder state
   const mediaRecorder = useRef<MediaRecorder | null>(null);
   const [isRecording, setIsRecording] = useState(false);
   const [recordingTime, setRecordingTime] = useState(0);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const chunksRef = useRef<Blob[]>([]);
 
-  // Use refs to avoid stale closures in callbacks
   const recordingTimeRef = useRef(0);
   const transcriptRef = useRef("");
 
-  // Playback state
   const [isPlaying, setIsPlaying] = useState(false);
   const [playbackTime, setPlaybackTime] = useState(0);
 
-  // Keep refs in sync with state
   useEffect(() => { recordingTimeRef.current = recordingTime; }, [recordingTime]);
   useEffect(() => { transcriptRef.current = transcript; }, [transcript]);
 
@@ -70,12 +66,10 @@ export default function VoiceTab({ onComplete }: VoiceTabProps) {
       const finalTranscript = transcriptRef.current;
       const finalDuration = Math.min(recordingTimeRef.current || 1, 30);
 
-      // Analyze voice characteristics (audio features)
       const voiceResult = await analyzeVoice(file, finalTranscript);
       setVoiceScore(voiceResult.voice_score);
       setEmotion(voiceResult.detected_voice_emotion);
 
-      // Also analyze transcript content for emotional depth via text analysis
       let textScore = 0;
       let detectedEmotions: string[] = [];
       let textSummary = "";
@@ -86,11 +80,10 @@ export default function VoiceTab({ onComplete }: VoiceTabProps) {
           detectedEmotions = textResult.detected_emotions || [];
           textSummary = textResult.summary || "";
         } catch {
-          // Text analysis failed — continue with voice-only score
+
         }
       }
 
-      // Combine scores: weight voice 40%, text content 60% (text is richer signal)
       const combinedScore = finalTranscript && finalTranscript.trim().length > 10
         ? Math.min(Math.max(voiceResult.voice_score * 0.4 + textScore * 0.6, 0), 1)
         : voiceResult.voice_score;
@@ -122,7 +115,6 @@ export default function VoiceTab({ onComplete }: VoiceTabProps) {
       mediaRecorder.current = new MediaRecorder(stream);
       chunksRef.current = [];
 
-      // Start Speech Recognition
       const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
       if (SpeechRecognition) {
         recognitionRef.current = new SpeechRecognition();
@@ -157,7 +149,7 @@ export default function VoiceTab({ onComplete }: VoiceTabProps) {
         setRecordingTime((prev) => {
           const next = prev + 1;
           if (next >= 30) {
-            // Auto-stop at 30 seconds
+
             if (mediaRecorder.current && mediaRecorder.current.state === "recording") {
               mediaRecorder.current.stop();
             }
@@ -188,7 +180,6 @@ export default function VoiceTab({ onComplete }: VoiceTabProps) {
     if (timerRef.current) clearInterval(timerRef.current);
   }, []);
 
-  // WaveSurfer setup
   useEffect(() => {
     if (!audioUrl || !waveformRef.current) return;
     if (wavesurfer.current) {
@@ -245,7 +236,6 @@ export default function VoiceTab({ onComplete }: VoiceTabProps) {
     ];
   }, [voiceScore]);
 
-  // Cleanup on unmount
   useEffect(() => {
     return () => {
       if (timerRef.current) clearInterval(timerRef.current);

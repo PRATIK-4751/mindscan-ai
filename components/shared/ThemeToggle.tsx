@@ -5,14 +5,13 @@ import { Moon, Sun } from "lucide-react";
 import { flushSync } from "react-dom";
 
 const STORAGE_KEY = "mindscan-theme";
-const DURATION    = 600;           // slightly longer = silkier
+const DURATION    = 600;           
 
 export default function ThemeToggle() {
   const [isDay, setIsDay]     = useState(false);
   const [mounted, setMounted] = useState(false);
 
-  /* ── restore saved theme on first render ── */
-  useEffect(() => {
+    useEffect(() => {
     const stored  = localStorage.getItem(STORAGE_KEY);
     const dayMode = stored === "day";
     document.body.dataset.theme = dayMode ? "day" : "night";
@@ -24,8 +23,7 @@ export default function ThemeToggle() {
     const btn = document.getElementById("theme-toggle-btn");
     if (!btn) return;
 
-    /* position of the button — circle expands from here */
-    const { top, left, width, height } = btn.getBoundingClientRect();
+        const { top, left, width, height } = btn.getBoundingClientRect();
     const cx   = left + width  / 2;
     const cy   = top  + height / 2;
     const vw   = window.visualViewport?.width  ?? window.innerWidth;
@@ -42,14 +40,12 @@ export default function ThemeToggle() {
       localStorage.setItem(STORAGE_KEY, nextDay ? "day" : "night");
     };
 
-    /* ── Fallback: no View Transitions support ── */
-    if (typeof document.startViewTransition !== "function") {
+        if (typeof document.startViewTransition !== "function") {
       applyTheme();
       return;
     }
 
-    /* ── Smooth circle-wipe via View Transitions API ── */
-    const root = document.documentElement;
+        const root = document.documentElement;
     root.dataset.magicuiThemeVt = "active";
     root.style.setProperty("--magicui-theme-toggle-vt-duration", `${DURATION}ms`);
 
@@ -67,7 +63,7 @@ export default function ThemeToggle() {
         { clipPath: [clipFrom, clipTo] },
         {
           duration:      DURATION,
-          easing:        "cubic-bezier(0.4, 0, 0.2, 1)",   // smooth material ease
+          easing:        "cubic-bezier(0.4, 0, 0.2, 1)",   
           fill:          "forwards",
           pseudoElement: "::view-transition-new(root)",
         }

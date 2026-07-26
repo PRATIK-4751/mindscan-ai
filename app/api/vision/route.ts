@@ -44,11 +44,13 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "No image provided" }, { status: 400 });
     }
 
-    const clientEmotions = clientEmotionsRaw ? JSON.parse(clientEmotionsRaw) : null;
+    if (image.size > 8 * 1024 * 1024) {
+      return NextResponse.json({ error: "Image size exceeds 8MB limit" }, { status: 400 });
+    }
 
+    const clientEmotions = clientEmotionsRaw ? JSON.parse(clientEmotionsRaw) : null;
     const arrayBuffer = await image.arrayBuffer();
     const base64Image = Buffer.from(arrayBuffer).toString('base64');
-
     const googleVision = await callGoogleVision(base64Image);
 
     const faces = googleVision?.faceAnnotations;
@@ -67,7 +69,6 @@ export async function POST(request: Request) {
       googleLabels = googleVision.labelAnnotations.map((l: any) => l.description).slice(0, 5);
     }
 
-    // Use client-side emotion results if provided, otherwise fall back to Google Vision only
     let face_score = 0.2;
     let detected_face_emotion = "Neutral";
     let emotions: Record<string, number> | null = null;
@@ -92,7 +93,6 @@ export async function POST(request: Request) {
       else if (emo === "Happy") { detected_face_emotion = "Calm"; face_score = 0.1; }
       else { detected_face_emotion = "Neutral"; face_score = 0.2; }
 
-      // Cross-reference with Google Vision
       if (googleSorrow > 0.4 && detected_face_emotion !== "Sad") {
         face_score = Math.min(face_score + 0.15, 0.95);
         detected_face_emotion = "Sad";
@@ -102,7 +102,6 @@ export async function POST(request: Request) {
         detected_face_emotion = "Tense";
       }
     } else if (faces && faces.length > 0) {
-      // Google Vision only fallback
       if (googleSorrow > 0.4) { detected_face_emotion = "Sad"; face_score = 0.8 + googleSorrow * 0.15; }
       else if (googleAnger > 0.4) { detected_face_emotion = "Tense"; face_score = 0.7 + googleAnger * 0.15; }
       else if (googleSurprise > 0.4) { detected_face_emotion = "Anxious"; face_score = 0.6 + googleSurprise * 0.15; }

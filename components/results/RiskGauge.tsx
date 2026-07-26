@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 
 interface RiskGaugeProps {
-  score:     number;   // 0–100
+  score:     number;   
   riskLevel: string;
 }
 
@@ -20,7 +20,6 @@ export default function RiskGauge({ score, riskLevel }: RiskGaugeProps) {
   const clamped       = Math.min(Math.max(score, 0), 100);
   const offset        = circumference * (1 - clamped / 100);
 
-  // Animate the arc on mount
   const [animated, setAnimated] = useState(false);
   useEffect(() => {
     const t = setTimeout(() => setAnimated(true), 120);
@@ -29,10 +28,9 @@ export default function RiskGauge({ score, riskLevel }: RiskGaugeProps) {
 
   const palette = COLORS[riskLevel as keyof typeof COLORS] ?? COLORS["Low Risk"];
 
-  // Tick marks along the arc
   const ticks = Array.from({ length: 11 }, (_, i) => {
     const pct   = i / 10;
-    const angle = Math.PI + pct * Math.PI;           // 180° → 360°
+    const angle = Math.PI + pct * Math.PI;           
     const cx    = 140 + (radius + 22) * Math.cos(angle);
     const cy    = 140 + (radius + 22) * Math.sin(angle);
     return { cx, cy, major: i % 5 === 0 };
@@ -47,7 +45,7 @@ export default function RiskGauge({ score, riskLevel }: RiskGaugeProps) {
         backdropFilter: "blur(12px)",
       }}
     >
-      {/* Ambient glow behind arc */}
+      
       <div
         className="absolute inset-0 pointer-events-none"
         style={{
@@ -77,7 +75,6 @@ export default function RiskGauge({ score, riskLevel }: RiskGaugeProps) {
           </filter>
         </defs>
 
-        {/* Tick marks */}
         {ticks.map((t, i) => (
           <circle
             key={i}
@@ -88,7 +85,6 @@ export default function RiskGauge({ score, riskLevel }: RiskGaugeProps) {
           />
         ))}
 
-        {/* Track — visible contrast in night mode */}
         <path
           d="M20 140 A110 110 0 0 1 260 140"
           fill="none"
@@ -97,7 +93,6 @@ export default function RiskGauge({ score, riskLevel }: RiskGaugeProps) {
           strokeLinecap="round"
         />
 
-        {/* Track gutter line */}
         <path
           d="M20 140 A110 110 0 0 1 260 140"
           fill="none"
@@ -106,7 +101,6 @@ export default function RiskGauge({ score, riskLevel }: RiskGaugeProps) {
           strokeLinecap="round"
         />
 
-        {/* Active arc */}
         <path
           d="M20 140 A110 110 0 0 1 260 140"
           fill="none"
@@ -121,7 +115,6 @@ export default function RiskGauge({ score, riskLevel }: RiskGaugeProps) {
           }}
         />
 
-        {/* Needle dot at arc tip */}
         {animated && clamped > 2 && (() => {
           const pct   = clamped / 100;
           const angle = Math.PI + pct * Math.PI;
@@ -138,7 +131,6 @@ export default function RiskGauge({ score, riskLevel }: RiskGaugeProps) {
           );
         })()}
 
-        {/* Centre score */}
         <text
           x="140"
           y="128"
@@ -153,7 +145,6 @@ export default function RiskGauge({ score, riskLevel }: RiskGaugeProps) {
         </text>
       </svg>
 
-      {/* Risk label */}
       <div
         className="font-display text-5xl uppercase leading-none"
         style={{
@@ -167,7 +158,6 @@ export default function RiskGauge({ score, riskLevel }: RiskGaugeProps) {
         {riskLevel}
       </div>
 
-      {/* Sub-label */}
       <div
         className="mt-3 uppercase"
         style={{
@@ -180,7 +170,6 @@ export default function RiskGauge({ score, riskLevel }: RiskGaugeProps) {
         RISK INDEX · {clamped.toFixed(0)}%
       </div>
 
-      {/* Scanlines overlay */}
       <div
         className="absolute inset-0 pointer-events-none scanlines"
         style={{ opacity: 0.4 }}

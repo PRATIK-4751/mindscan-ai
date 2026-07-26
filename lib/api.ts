@@ -1,7 +1,14 @@
 import axios from "axios";
 import type { AnalysisResult, LimeWord } from "./types";
 
+const PYTHON_URL = (process.env.NEXT_PUBLIC_PYTHON_URL || "").replace(/\/$/, "");
+
 const api = axios.create({
+  baseURL: PYTHON_URL || "/api",
+  timeout: 30000,
+});
+
+const nextApi = axios.create({
   baseURL: "/api",
   timeout: 30000,
 });

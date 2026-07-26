@@ -1,12 +1,7 @@
 import { NextResponse } from "next/server";
 import { textAnalysisLLM } from "../../../lib/llm";
 
-export async function POST(request: Request) {
-  try {
-    const { text } = await request.json();
-    if (!text) return NextResponse.json({ error: "No text provided" }, { status: 400 });
-
-    const systemPrompt = `You are MindScan, an empathetic mental health screening AI. A user has shared their personal story with you.
+const SYSTEM_PROMPT = `You are MindScan, an empathetic mental health screening AI. A user has shared their personal story with you.
 
 YOUR ROLE:
 - Listen deeply to what they share
@@ -16,15 +11,9 @@ YOUR ROLE:
 - If you detect distress, normalize it and offer hope
 - If crisis signals appear (self-harm, suicide), immediately provide crisis resources (988 Suicide & Crisis Lifeline)
 
-ALSO return a structured analysis. Your response MUST be valid JSON with this exact structure:
+Return ONLY valid JSON with this exact structure:
 
-{
-  "reply": "Your compassionate response to the user here...",
-  "text_score": 0.5,
-  "lime_words": [{"word": "word", "score": 0.8}],
-  "detected_emotions": ["sadness", "anxiety"],
-  "summary": "Brief clinical summary"
-}
+{"reply": "Your compassionate response to the user here...", "text_score": 0.5, "lime_words": [{"word": "word", "score": 0.8}], "detected_emotions": ["sadness", "anxiety"], "summary": "Brief clinical summary"}
 
 RULES FOR text_score:
 - 0.0-0.2: Minimal distress, casual/neutral
@@ -45,18 +34,21 @@ CRITICAL:
 - Never diagnose or label conditions
 - Never dismiss or minimize their feelings
 - The "reply" field is what the user will see — make it warm and human
-- The JSON must be parseable — no markdown, no extra text outside the JSON
-- If the user shares something concerning, acknowledge it directly`;
+- The JSON must be parseable — no markdown, no extra text outside the JSON`;
+
+export async function POST(request: Request) {
+  try {
+    const { text } = await request.json();
+    if (!text) return NextResponse.json({ error: "No text provided" }, { status: 400 });
 
     try {
       const content = await textAnalysisLLM([
-        { role: "system", content: systemPrompt },
-        { role: "user", content: text },
+        { role: "system", content: SYSTEM_PROMPT },
+        { role: "user", content: String(text).slice(0, 3000) },
       ]);
 
-      // Extract JSON — handle code fences or bare JSON
       let jsonStr = content;
-      const fenceMatch = content.match(/```(?:json)?\s*([\s\S]*?)```/);
+      const fenceMatch = content.match(/\`\`\`(?:json)?\s*([\s\S]*?)\`\`\`/);
       if (fenceMatch) {
         jsonStr = fenceMatch[1];
       } else {
@@ -75,18 +67,14 @@ CRITICAL:
                 score: Math.min(Math.max(Number(w.score) || 0, 0), 1),
               }))
             : [],
-          detected_emotions: Array.isArray(parsed.detected_emotions)
-            ? parsed.detected_emotions
-            : [],
+          detected_emotions: Array.isArray(parsed.detected_emotions) ? parsed.detected_emotions : [],
           summary: parsed.summary || "",
         });
       } catch {
         const lexicon = fallbackLexicon(text);
         return NextResponse.json({
           reply: content.trim() || "Thank you for sharing that with me.",
-          text_score: lexicon.text_score,
-          lime_words: lexicon.lime_words,
-          detected_emotions: lexicon.detected_emotions,
+          ...lexicon,
           summary: "Analysis based on text patterns.",
         });
       }
@@ -94,7 +82,6 @@ CRITICAL:
       return fallbackAnalysis(text);
     }
   } catch (err: any) {
-    console.error("Text analysis error:", err);
     return fallbackAnalysis("I'm here to listen.");
   }
 }
@@ -102,7 +89,7 @@ CRITICAL:
 function fallbackAnalysis(text: string) {
   const lexicon = fallbackLexicon(text);
   return NextResponse.json({
-    reply: "Thank you for sharing your story with me. I can see that you're going through something meaningful. Your feelings are valid, and it takes courage to express them. I'm here to support you through this screening.",
+    reply: "Thank you for sharing your story with me. I can see that you're going through something meaningful. Your feelings are valid, and it takes courage to express them.",
     ...lexicon,
   });
 }

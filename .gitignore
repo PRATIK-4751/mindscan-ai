@@ -6,6 +6,8 @@ npm-debug.log*
 yarn-error.log*
 .DS_Store
 *.tsbuildinfo
-
 .vercel
-.env*.local
+.vscode
+python_server/venv
+__pycache__
+*.pyc

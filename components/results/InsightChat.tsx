@@ -12,7 +12,6 @@ type ChatMessage = {
 
 const STORAGE_KEY = "mindscan-chat-history";
 
-// Detailed system prompt - hidden from UI, used for LLM context
 const SYSTEM_PROMPT = `You are MindScan AI, an empathetic mental health support companion embedded in a clinical screening tool. Your role is to provide compassionate, informed guidance while maintaining clear boundaries.
 
 CORE IDENTITY:
@@ -67,38 +66,36 @@ const LANGUAGES = [
   { label: "Korean", value: "ko-KR" },
 ];
 
-// Format assistant messages with better structure and readability
 function AssistantMessage({ content }: { content: string }) {
-  // Split content into paragraphs by double newlines
+  
   const paragraphs = content.split(/\n\n+/);
 
   return (
     <div className="font-body space-y-4 leading-relaxed text-[var(--amber-gold)]">
       {paragraphs.map((paragraph, idx) => {
-        // Check if this paragraph is a table
+        
         if (paragraph.includes("|") && paragraph.includes("---")) {
           return <TableContent key={idx} content={paragraph} />;
         }
-        // Check if this paragraph is a numbered/ordered list
+        
         if (/^\d+\./.test(paragraph.split("\n")[0] ?? "")) {
           return <OrderedListContent key={idx} content={paragraph} />;
         }
-        // Check if this paragraph is a bullet list
+
         if (paragraph.includes("**") || paragraph.startsWith("-")) {
           return <BulletListContent key={idx} content={paragraph} />;
         }
-        // Regular paragraph
+
         return <p key={idx} className="whitespace-pre-wrap">{paragraph}</p>;
       })}
     </div>
   );
 }
 
-// Render table content
 function TableContent({ content }: { content: string }) {
   const lines = content.split("\n").filter((l) => l.trim());
   const headers = lines[0]?.split("|").filter((h) => h.trim()) || [];
-  const rows = lines.slice(2); // Skip header and separator
+  const rows = lines.slice(2); 
 
   return (
     <div className="my-4 overflow-hidden rounded border border-white/10">
@@ -132,7 +129,6 @@ function TableContent({ content }: { content: string }) {
   );
 }
 
-// Parse inline formatting like bold text
 function parseInlineFormatting(text: string) {
   const parts = text.split(/(\*\*.*?\*\*)/g);
   return parts.map((part, idx) => {
@@ -143,7 +139,6 @@ function parseInlineFormatting(text: string) {
   });
 }
 
-// Render ordered list content
 function OrderedListContent({ content }: { content: string }) {
   const lines = content.split("\n").filter((l) => l.trim());
 
@@ -161,7 +156,6 @@ function OrderedListContent({ content }: { content: string }) {
   );
 }
 
-// Render bullet list content
 function BulletListContent({ content }: { content: string }) {
   const lines = content.split("\n").filter((l) => l.trim());
 
@@ -191,7 +185,7 @@ export default function InsightChat() {
   const playVoice = async (text: string) => {
     try {
       setSpeaking(true);
-      // Stop current audio if playing
+      
       if (audioRef.current) {
         audioRef.current.pause();
       }
@@ -264,14 +258,12 @@ export default function InsightChat() {
     setInput("");
     setLoading(true);
     try {
-      // Context window management: keep last 10 messages + add screening context
+
       const allMessages = [...messages, userMessage];
       const contextWindow = allMessages.slice(-10);
       
-      // Build context-aware system prompt
       let fullSystemPrompt = SYSTEM_PROMPT;
       
-      // Add screening results context if available from sessionStorage
       try {
         const stored = window.sessionStorage.getItem("mindscan-result");
         if (stored) {
@@ -319,7 +311,6 @@ Use this context to personalize your responses, but never share scores directly 
       };
       setMessages((prev) => [...prev, reply]);
       
-      // Auto-play the response using ElevenLabs
       if (data?.content) {
         playVoice(data.content);
       }

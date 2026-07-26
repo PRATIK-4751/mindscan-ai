@@ -9,7 +9,6 @@ export async function POST(request: Request) {
 
     if (!audio) return NextResponse.json({ error: "No audio provided" }, { status: 400 });
 
-    // If we have a transcript, analyze it deeply with the LLM
     if (transcript && transcript.trim().length > 5) {
       try {
         const content = await voiceAnalysisLLM([
@@ -23,7 +22,6 @@ voice_score: 0.0-1.0 (0=calm, 1=severe distress). detected_voice_emotion: single
           { role: "user", content: transcript },
         ]);
 
-        // Extract JSON — handle code fences or bare JSON
         let jsonStr = content;
         const fenceMatch = content.match(/```(?:json)?\s*([\s\S]*?)```/);
         if (fenceMatch) {
@@ -50,33 +48,22 @@ voice_score: 0.0-1.0 (0=calm, 1=severe distress). detected_voice_emotion: single
       }
     }
 
-    // Fallback: basic audio-only analysis
-    const size = audio.size;
-    let detected_voice_emotion = "Neutral";
-    let voice_score = 0.3;
-
-    if (size % 3 === 0) {
-      detected_voice_emotion = "Tense";
-      voice_score = 0.7;
-    } else if (size % 2 === 0) {
-      detected_voice_emotion = "Sad";
-      voice_score = 0.8;
-    }
-
     return NextResponse.json({
-      voice_score,
-      detected_voice_emotion,
+      voice_score: 0.25,
+      detected_voice_emotion: "Neutral",
       transcript: transcript || "",
       emotional_indicators: [],
-      severity_notes: "Analysis based on audio characteristics only.",
+      severity_notes: transcript
+        ? "Transcript was too short for reliable analysis."
+        : "No speech detected. Please try speaking clearly into your microphone.",
     });
   } catch (err: any) {
     return NextResponse.json({
-      voice_score: 0.5,
+      voice_score: 0.25,
       detected_voice_emotion: "Neutral",
       transcript: "",
       emotional_indicators: [],
-      severity_notes: "",
+      severity_notes: "Voice analysis encountered an error.",
     });
   }
 }
