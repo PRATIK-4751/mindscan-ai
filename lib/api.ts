@@ -6,11 +6,6 @@ const api = axios.create({
   timeout: 30000,
 });
 
-const ML_SERVICE_URL = process.env.NEXT_PUBLIC_ML_SERVICE_URL || "http://localhost:8001";
-const mlApi = axios.create({
-  baseURL: ML_SERVICE_URL,
-  timeout: 60000,
-});
 
 const normalizeError = (error: unknown) => {
   if (axios.isAxiosError(error)) {
@@ -147,85 +142,4 @@ export async function generateTTS(text: string) {
   }
 }
 
-// --- SHAP Explainability (calls Python microservice) ---
 
-export interface ShapExplanation {
-  shap_values: ShapValue[];
-  predicted_class: number;
-  risk_level: string;
-  confidence: number;
-  probabilities: Record<string, number>;
-  method: string;
-}
-
-export async function explainTextSHAP(text: string): Promise<ShapExplanation> {
-  try {
-    const { data } = await mlApi.post<ShapExplanation>("/explain/text", { text });
-    return data;
-  } catch (error) {
-    // Fallback: return empty explanation if Python service unavailable
-    return {
-      shap_values: [],
-      predicted_class: 0,
-      risk_level: "low",
-      confidence: 0.5,
-      probabilities: { low: 0.5, medium: 0.3, high: 0.2 },
-      method: "unavailable",
-    };
-  }
-}
-
-export async function explainFaceSHAP(emotions: Record<string, number>): Promise<ShapExplanation> {
-  try {
-    const { data } = await mlApi.post<ShapExplanation>("/explain/face", { emotions });
-    return data;
-  } catch (error) {
-    return {
-      shap_values: [],
-      predicted_class: 0,
-      risk_level: "low",
-      confidence: 0.5,
-      probabilities: { low: 0.5, medium: 0.3, high: 0.2 },
-      method: "unavailable",
-    };
-  }
-}
-
-export async function explainVoiceSHAP(features: Record<string, number>): Promise<ShapExplanation> {
-  try {
-    const { data } = await mlApi.post<ShapExplanation>("/explain/voice", { emotions: features });
-    return data;
-  } catch (error) {
-    return {
-      shap_values: [],
-      predicted_class: 0,
-      risk_level: "low",
-      confidence: 0.5,
-      probabilities: { low: 0.5, medium: 0.3, high: 0.2 },
-      method: "unavailable",
-    };
-  }
-}
-
-export async function explainCombinedSHAP(payload: {
-  text?: string;
-  face_emotions?: Record<string, number>;
-  voice_features?: Record<string, number>;
-}): Promise<{
-  modalities: Record<string, ShapExplanation>;
-  combined_risk: number;
-  risk_level: string;
-  num_modalities: number;
-}> {
-  try {
-    const { data } = await mlApi.post("/explain/combined", payload);
-    return data;
-  } catch (error) {
-    return {
-      modalities: {},
-      combined_risk: 0,
-      risk_level: "low",
-      num_modalities: 0,
-    };
-  }
-}
