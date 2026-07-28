@@ -3,14 +3,12 @@
 import { useState, useRef, useEffect } from "react";
 import { Send, Loader2, MessageCircle, Brain } from "lucide-react";
 import { analyzeText, sendChatMessage, type TextAnalysisResponse } from "../../lib/api";
-import type { LimeWord, ShapValue } from "../../lib/types";
+import type { LimeWord } from "../../lib/types";
 
 export interface TextTabResult {
   text: string;
   text_score: number;
   lime_words: LimeWord[];
-  shap_values: ShapValue[];
-  shap_method?: string;
   reply?: string;
   detected_emotions?: string[];
 }
@@ -27,8 +25,6 @@ interface TextTabProps {
     text: string;
     text_score: number;
     lime_words: LimeWord[];
-    shap_values: ShapValue[];
-    shap_method?: string;
     reply?: string;
     detected_emotions?: string[];
   }) => void;
@@ -76,8 +72,6 @@ export default function TextTab({ onComplete, value = "" }: TextTabProps) {
         text: trimmed,
         text_score: result.text_score,
         lime_words: result.lime_words,
-        shap_values: result.shap_values ?? [],
-        shap_method: result.shap_method,
         reply: result.reply,
         detected_emotions: result.detected_emotions,
       });

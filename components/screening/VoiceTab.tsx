@@ -4,7 +4,6 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import WaveSurfer from "wavesurfer.js";
 import LoadingSpinner from "../shared/LoadingSpinner";
 import { analyzeVoice, analyzeText } from "../../lib/api";
-import type { ShapValue } from "../../lib/types";
 
 export interface VoiceTabResult {
   voice_score: number;
@@ -12,8 +11,6 @@ export interface VoiceTabResult {
   audioUrl: string;
   duration: number;
   transcript?: string;
-  shap_values?: ShapValue[];
-  shap_method?: string;
 }
 
 interface VoiceTabProps {
@@ -99,8 +96,6 @@ export default function VoiceTab({ onComplete }: VoiceTabProps) {
         audioUrl: url,
         duration: finalDuration,
         transcript: finalTranscript,
-        shap_values: voiceResult.shap_values ?? [],
-        shap_method: voiceResult.shap_method ?? "unavailable",
       });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unable to analyze voice.");

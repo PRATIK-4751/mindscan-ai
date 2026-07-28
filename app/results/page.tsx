@@ -3,20 +3,20 @@
 import { useEffect, useMemo, useState } from "react";
 import RiskGauge from "../../components/results/RiskGauge";
 import ScoreBreakdown from "../../components/results/ScoreBreakdown";
-import ShapChart from "../../components/results/ShapChart";
+import LIMEChart from "../../components/results/LIMEChart";
 import EmotionSummary from "../../components/results/EmotionSummary";
 import Recommendations from "../../components/results/Recommendations";
 import AudioTherapy from "../../components/results/AudioTherapy";
 import PDFReport from "../../components/results/PDFReport";
 import InsightChat from "../../components/results/InsightChat";
 import SessionHistory from "../../components/results/SessionHistory";
-import type { AnalysisResult, LimeWord, ShapValue } from "../../lib/types";
+import type { AnalysisResult, LimeWord } from "../../lib/types";
 
 interface StoredResult {
   combined: AnalysisResult;
-  textResult: { text_score: number; lime_words: LimeWord[]; shap_values?: ShapValue[]; shap_method?: string; text?: string; reply?: string; detected_emotions?: string[] } | null;
+  textResult: { text_score: number; lime_words: LimeWord[]; text?: string; reply?: string; detected_emotions?: string[] } | null;
   faceResult: { face_score: number; detected_face_emotion: string; emotions?: Record<string, number> | null; dominant_emotion?: string | null; emotion_confidence?: number | null; google_labels?: string[] } | null;
-  voiceResult: { voice_score: number; detected_voice_emotion: string; transcript?: string; shap_values?: ShapValue[]; shap_method?: string } | null;
+  voiceResult: { voice_score: number; detected_voice_emotion: string; transcript?: string } | null;
   phq9Result: { phq9_score: number; phq9_total?: number; phq9_severity?: string } | null;
 }
 
@@ -37,8 +37,6 @@ const defaultResult: AnalysisResult = {
 export default function ResultsPage() {
   const [result, setResult] = useState<AnalysisResult>(defaultResult);
   const [limeWords, setLimeWords] = useState<LimeWord[]>([]);
-  const [shapValues, setShapValues] = useState<ShapValue[]>([]);
-  const [shapMethod, setShapMethod] = useState<string>("unavailable");
   const [faceEmotion, setFaceEmotion] = useState("Neutral");
   const [voiceEmotion, setVoiceEmotion] = useState("Neutral");
   const [textReply, setTextReply] = useState<string | null>(null);
@@ -65,8 +63,6 @@ export default function ResultsPage() {
         });
       }
       setLimeWords(parsed.textResult?.lime_words ?? combined?.lime_words ?? []);
-      setShapValues(parsed.textResult?.shap_values ?? []);
-      setShapMethod(parsed.textResult?.shap_method ?? "unavailable");
       setTextReply(parsed.textResult?.reply ?? null);
       setTextEmotions(parsed.textResult?.detected_emotions ?? []);
       setFaceEmotion(parsed.faceResult?.detected_face_emotion ?? combined?.detected_face_emotion ?? "Neutral");
@@ -146,18 +142,7 @@ export default function ResultsPage() {
 
         <div className="mt-10 grid gap-8 lg:grid-cols-[1.2fr_1fr]">
           <div className="card-shell p-6">
-            {shapValues.length > 0 ? (
-              <ShapChart data={shapValues} title="SHAP EXPLAINABILITY" />
-            ) : (
-              <ShapChart data={limeWords.map(w => ({ feature: w.word, value: w.score, shap_value: w.score, contribution: w.score }))} title="LINGUISTIC EVIDENCE" />
-            )}
-            {shapMethod && shapMethod !== "unavailable" && (
-              <div className="mt-2 text-right">
-                <span className="font-mono text-[9px] uppercase tracking-wider text-[var(--text-muted)]">
-                  Method: {shapMethod}
-                </span>
-              </div>
-            )}
+            <LIMEChart data={limeWords} />
             {textReply && (
               <div className="mt-6 border-t border-white/10 pt-4">
                 <div className="font-mono text-[10px] uppercase tracking-[0.3em] text-[var(--text-muted)] mb-2">

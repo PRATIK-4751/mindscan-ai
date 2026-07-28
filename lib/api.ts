@@ -1,32 +1,34 @@
 import axios from "axios";
-import type { AnalysisResult, LimeWord, ShapValue } from "./types";
+import type { AnalysisResult, LimeWord } from "./types";
+
+const PYTHON_URL = (process.env.NEXT_PUBLIC_PYTHON_URL || "").replace(/\/$/, "");
 
 const api = axios.create({
+  baseURL: PYTHON_URL || "/api",
+  timeout: 30000,
+});
+
+const nextApi = axios.create({
   baseURL: "/api",
   timeout: 30000,
 });
 
-const ML_SERVICE_URL = process.env.NEXT_PUBLIC_ML_SERVICE_URL || "http://localhost:8001";
-const mlApi = axios.create({
-  baseURL: ML_SERVICE_URL,
-  timeout: 60000,
-});
+const sleepMessage = "Our servers are waking up, please wait 30 seconds...";
 
 const normalizeError = (error: unknown) => {
   if (axios.isAxiosError(error)) {
-    return new Error(error.response?.data?.error || error.response?.data?.detail || "Request failed");
+    const status = error.response?.status;
+    if (error.code === "ECONNABORTED" || status === 502 || status === 503 || status === 504) {
+      return new Error(sleepMessage);
+    }
   }
   return error;
 };
-
-// --- Text Analysis ---
 
 export interface TextAnalysisResponse {
   reply: string;
   text_score: number;
   lime_words: LimeWord[];
-  shap_values?: ShapValue[];
-  shap_method?: string;
   detected_emotions: string[];
   summary: string;
 }
@@ -39,8 +41,6 @@ export async function analyzeText(text: string): Promise<TextAnalysisResponse> {
     throw normalizeError(error);
   }
 }
-
-// --- Face Analysis ---
 
 export interface FaceDetectionClientResult {
   emotions: Record<string, number>;
@@ -71,29 +71,17 @@ export async function analyzeFace(image: File, clientEmotions?: FaceDetectionCli
   }
 }
 
-// --- Voice Analysis ---
-
 export async function analyzeVoice(audio: File, transcript?: string) {
   try {
     const formData = new FormData();
     formData.append("audio", audio);
     if (transcript) formData.append("transcript", transcript);
-    const { data } = await api.post<{
-      voice_score: number;
-      detected_voice_emotion: string;
-      transcript?: string;
-      shap_values?: { feature: string; value: number; shap_value: number; contribution: number }[];
-      shap_method?: string;
-      librosa_available?: boolean;
-      librosa_confidence?: number;
-    }>("/voice", formData);
+    const { data } = await api.post<{ voice_score: number; detected_voice_emotion: string; transcript?: string }>("/voice", formData);
     return data;
   } catch (error) {
     throw normalizeError(error);
   }
 }
-
-// --- PHQ-9 ---
 
 export async function analyzePHQ9(answers: number[]) {
   try {
@@ -105,8 +93,6 @@ export async function analyzePHQ9(answers: number[]) {
     throw normalizeError(error);
   }
 }
-
-// --- Combined Score Fusion ---
 
 export async function analyzeCombined(payload: {
   text_score: number;
@@ -122,8 +108,6 @@ export async function analyzeCombined(payload: {
   }
 }
 
-// --- Chat ---
-
 export async function sendChatMessage(
   messages: Array<{ role: string; content: string }>,
   systemPrompt?: string
@@ -136,96 +120,11 @@ export async function sendChatMessage(
   }
 }
 
-// --- TTS ---
-
 export async function generateTTS(text: string) {
   try {
     const { data } = await api.post<{ audio: string }>("/tts", { text });
     return data;
   } catch (error) {
     throw normalizeError(error);
-  }
-}
-
-// --- SHAP Explainability (calls Python microservice) ---
-
-export interface ShapExplanation {
-  shap_values: ShapValue[];
-  predicted_class: number;
-  risk_level: string;
-  confidence: number;
-  probabilities: Record<string, number>;
-  method: string;
-}
-
-export async function explainTextSHAP(text: string): Promise<ShapExplanation> {
-  try {
-    const { data } = await mlApi.post<ShapExplanation>("/explain/text", { text });
-    return data;
-  } catch (error) {
-    // Fallback: return empty explanation if Python service unavailable
-    return {
-      shap_values: [],
-      predicted_class: 0,
-      risk_level: "low",
-      confidence: 0.5,
-      probabilities: { low: 0.5, medium: 0.3, high: 0.2 },
-      method: "unavailable",
-    };
-  }
-}
-
-export async function explainFaceSHAP(emotions: Record<string, number>): Promise<ShapExplanation> {
-  try {
-    const { data } = await mlApi.post<ShapExplanation>("/explain/face", { emotions });
-    return data;
-  } catch (error) {
-    return {
-      shap_values: [],
-      predicted_class: 0,
-      risk_level: "low",
-      confidence: 0.5,
-      probabilities: { low: 0.5, medium: 0.3, high: 0.2 },
-      method: "unavailable",
-    };
-  }
-}
-
-export async function explainVoiceSHAP(features: Record<string, number>): Promise<ShapExplanation> {
-  try {
-    const { data } = await mlApi.post<ShapExplanation>("/explain/voice", { emotions: features });
-    return data;
-  } catch (error) {
-    return {
-      shap_values: [],
-      predicted_class: 0,
-      risk_level: "low",
-      confidence: 0.5,
-      probabilities: { low: 0.5, medium: 0.3, high: 0.2 },
-      method: "unavailable",
-    };
-  }
-}
-
-export async function explainCombinedSHAP(payload: {
-  text?: string;
-  face_emotions?: Record<string, number>;
-  voice_features?: Record<string, number>;
-}): Promise<{
-  modalities: Record<string, ShapExplanation>;
-  combined_risk: number;
-  risk_level: string;
-  num_modalities: number;
-}> {
-  try {
-    const { data } = await mlApi.post("/explain/combined", payload);
-    return data;
-  } catch (error) {
-    return {
-      modalities: {},
-      combined_risk: 0,
-      risk_level: "low",
-      num_modalities: 0,
-    };
   }
 }

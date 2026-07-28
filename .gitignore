@@ -8,7 +8,6 @@ yarn-error.log*
 *.tsbuildinfo
 .vercel
 .vscode
-__pycache__/
+python_server/venv
+__pycache__
 *.pyc
-*.pyo
-voice_ml/models/*.joblib
